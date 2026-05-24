@@ -11,8 +11,8 @@
 body{font-family:'Inter','Helvetica Neue',sans-serif;background-color:#0f172a;background-image:radial-gradient(at 0% 0%,hsla(253,16%,7%,1) 0,transparent 50%),radial-gradient(at 50% 0%,hsla(262,39%,30%,1) 0,transparent 50%),radial-gradient(at 100% 0%,hsla(300,49%,25%,1) 0,transparent 50%);color:#e2e8f0;min-height:100vh;}
 .font-mono{font-family:'JetBrains Mono','Fira Code',monospace;}
 .glass-panel{background:rgba(30,41,59,0.6);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);}
-.drop-zone{background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%23475569FF' stroke-width='2' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");transition:all 0.3s cubic-bezier(0.4,0,0.2,1);}
-.drop-zone.drag-over{background-color:rgba(139,92,246,0.1);background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%238B5CF6FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");transform:scale(1.01);}
+.drop-zone{background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%23475569FF' stroke-width='2' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");transition:all 0.3s cubic-bezier(0.4,0,0.2,1);cursor:pointer;}
+.drop-zone.drag-over{background-color:rgba(139,92,246,0.15);background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%238B5CF6FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");transform:scale(1.01);}
 .fade-in-up{animation:fadeInUp 0.6s cubic-bezier(0.16,1,0.3,1) forwards;opacity:0;transform:translateY(20px);}
 @keyframes fadeInUp{to{opacity:1;transform:translateY(0);}}
 .blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.35;z-index:-1;}
@@ -45,6 +45,9 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 </style>
 </head>
 <body class="flex flex-col items-center p-4 md:p-8 relative min-h-screen">
+
+<!-- hidden file input, NOT inside drop zone -->
+<input type="file" id="file-input" class="hidden" accept=".json,.srt">
 
 <div class="fixed inset-0 overflow-hidden pointer-events-none">
   <div class="blob bg-violet-600 w-96 h-96 top-0 left-1/4 mix-blend-screen animate-pulse"></div>
@@ -86,17 +89,20 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
     </div>
   </div>
 
-  <!-- Drop Zone -->
-  <div id="drop-zone" class="drop-zone rounded-2xl p-8 md:p-12 text-center cursor-pointer group relative select-none">
-    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" accept=".json,.srt,application/json,text/plain">
-    <div class="relative z-10 pointer-events-none flex flex-col items-center gap-4">
-      <div class="p-4 bg-slate-800/50 rounded-full border border-slate-700 group-hover:border-violet-500 group-hover:bg-slate-800 transition-all">
-        <svg class="w-8 h-8 text-slate-300 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+  <!-- Drop Zone: pure div, no nested input -->
+  <div id="drop-zone" class="drop-zone rounded-2xl p-8 md:p-12 text-center select-none">
+    <div class="flex flex-col items-center gap-4">
+      <div class="p-4 bg-slate-800/50 rounded-full border border-slate-700 transition-all" id="drop-icon-wrap">
+        <svg class="w-8 h-8 text-slate-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
       </div>
       <div>
         <p class="text-lg font-semibold text-white mb-1" data-i18n="dropTitle"></p>
         <p class="text-sm text-slate-400" data-i18n="dropSub"></p>
       </div>
+      <button id="browse-btn" class="flex items-center gap-2 px-4 py-2 bg-violet-700/60 hover:bg-violet-600/80 border border-violet-500/40 rounded-xl text-xs font-medium text-violet-200 transition-all active:scale-95">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h3l2 2h7a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+        <span data-i18n="browseBtn"></span>
+      </button>
       <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 rounded-full border border-slate-700">
         <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <span class="text-xs text-slate-300" data-i18n="dropHint"></span>
@@ -106,40 +112,20 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 
   <!-- Tools Panel -->
   <div id="tools-panel" class="hidden glass-panel rounded-2xl overflow-hidden">
-    <!-- Tab Bar -->
     <div class="flex gap-1 px-4 pt-4 border-b border-slate-700/50 pb-3">
       <button class="tab-btn active" data-tab="clean" data-i18n="tabClean"></button>
       <button class="tab-btn" data-tab="particles" data-i18n="tabParticles"></button>
       <button class="tab-btn" data-tab="convert" data-i18n="tabConvert"></button>
       <button class="tab-btn" data-tab="replace" data-i18n="tabReplace"></button>
     </div>
-
-    <!-- Tab: Clean -->
     <div id="tab-clean" class="tab-content p-6 space-y-5">
       <div class="grid md:grid-cols-2 gap-5">
-        <div class="flex items-center justify-between">
-          <div><p class="text-sm text-white" data-i18n="removeEmpty"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="removeEmptySub"></p></div>
-          <label class="toggle-switch"><input type="checkbox" id="toggle-empty" checked><span class="toggle-slider"></span></label>
-        </div>
-        <div class="flex items-center justify-between">
-          <div><p class="text-sm text-white" data-i18n="mergeSame"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="mergeSameSub"></p></div>
-          <label class="toggle-switch"><input type="checkbox" id="toggle-merge"><span class="toggle-slider"></span></label>
-        </div>
-        <div class="flex items-center justify-between">
-          <div><p class="text-sm text-white" data-i18n="trimSpaces"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="trimSpacesSub"></p></div>
-          <label class="toggle-switch"><input type="checkbox" id="toggle-trim" checked><span class="toggle-slider"></span></label>
-        </div>
-        <div>
-          <p class="text-sm text-white mb-2" data-i18n="timeOffset"></p>
-          <div class="flex items-center gap-2">
-            <input type="number" id="time-offset" value="0" step="0.1" class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500">
-            <span class="text-xs text-slate-400" data-i18n="seconds"></span>
-          </div>
-        </div>
+        <div class="flex items-center justify-between"><div><p class="text-sm text-white" data-i18n="removeEmpty"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="removeEmptySub"></p></div><label class="toggle-switch"><input type="checkbox" id="toggle-empty" checked><span class="toggle-slider"></span></label></div>
+        <div class="flex items-center justify-between"><div><p class="text-sm text-white" data-i18n="mergeSame"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="mergeSameSub"></p></div><label class="toggle-switch"><input type="checkbox" id="toggle-merge"><span class="toggle-slider"></span></label></div>
+        <div class="flex items-center justify-between"><div><p class="text-sm text-white" data-i18n="trimSpaces"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="trimSpacesSub"></p></div><label class="toggle-switch"><input type="checkbox" id="toggle-trim" checked><span class="toggle-slider"></span></label></div>
+        <div><p class="text-sm text-white mb-2" data-i18n="timeOffset"></p><div class="flex items-center gap-2"><input type="number" id="time-offset" value="0" step="0.1" class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-violet-500"><span class="text-xs text-slate-400" data-i18n="seconds"></span></div></div>
       </div>
     </div>
-
-    <!-- Tab: Particles -->
     <div id="tab-particles" class="tab-content hidden p-6">
       <p class="text-xs text-slate-400 mb-4" data-i18n="particlesHint"></p>
       <div id="particle-chips" class="flex flex-wrap gap-2 mb-4"></div>
@@ -148,8 +134,6 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
         <button id="particle-add-btn" class="text-xs text-violet-400 hover:text-violet-300 transition-colors" data-i18n="addCustomParticle"></button>
       </div>
     </div>
-
-    <!-- Tab: Convert -->
     <div id="tab-convert" class="tab-content hidden p-6">
       <p class="text-xs text-slate-400 mb-4" data-i18n="convertHint"></p>
       <div class="flex flex-wrap gap-3">
@@ -158,15 +142,10 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
       </div>
       <p class="text-xs text-slate-600 mt-3" data-i18n="convertNote"></p>
     </div>
-
-    <!-- Tab: Replace -->
     <div id="tab-replace" class="tab-content hidden p-6">
       <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
       <div id="replace-list" class="space-y-2 mb-3"></div>
-      <button id="add-replace-btn" class="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        <span data-i18n="addRule"></span>
-      </button>
+      <button id="add-replace-btn" class="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg><span data-i18n="addRule"></span></button>
     </div>
   </div>
 
@@ -174,31 +153,16 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
   <div id="results-panel" class="hidden flex-col gap-4 fade-in-up">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="text-sm text-slate-400">
-        <span id="file-name-display" class="text-violet-300 font-medium"></span>
-        &nbsp;·&nbsp;
+        <span id="file-name-display" class="text-violet-300 font-medium"></span>&nbsp;·&nbsp;
         <span id="subtitle-count" class="text-white font-bold">0</span>
         <span data-i18n="subtitleLines"></span>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button onclick="exportFile('srt')" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-violet-900/40">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <span data-i18n="exportSRT"></span>
-        </button>
-        <button onclick="exportFile('txt')" class="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <span data-i18n="exportTXT"></span>
-        </button>
-        <button onclick="exportFile('plain')" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          <span data-i18n="exportPlain"></span>
-        </button>
-        <button onclick="copyAllSubs()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-          <span data-i18n="copyAll"></span>
-        </button>
-        <button onclick="clearAll()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all active:scale-95">
-          <span data-i18n="clearAll"></span>
-        </button>
+        <button onclick="exportFile('srt')" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-violet-900/40"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg><span data-i18n="exportSRT"></span></button>
+        <button onclick="exportFile('txt')" class="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg><span data-i18n="exportTXT"></span></button>
+        <button onclick="exportFile('plain')" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg><span data-i18n="exportPlain"></span></button>
+        <button onclick="copyAllSubs()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg><span data-i18n="copyAll"></span></button>
+        <button onclick="clearAll()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all active:scale-95"><span data-i18n="clearAll"></span></button>
       </div>
     </div>
     <div class="glass-panel rounded-xl overflow-hidden">
@@ -229,97 +193,95 @@ input:checked+.toggle-slider:before{transform:translateX(18px);}
 const i18n={
   en:{
     tagline:'CapCut Subtitle Editor',
-    desc:'Import <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> (CapCut) or any <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> file. Edit, clean, convert and export. 100% local — nothing uploaded.',
+    desc:'Import <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> (CapCut) or any <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> file. Edit, clean, convert and export. 100% local.',
     osGuideTitle:'📂 Where is my CapCut project file?',
     osGuideSub:'Navigate to the folder below, open your project folder, and drag draft_content.json here.',
-    osGuideNote:'Replace "user" with your actual username. Each project has its own subfolder inside com.lveditor.draft.',
-    dropTitle:'Click or drag & drop your file',
+    osGuideNote:'Replace "user" with your actual username.',
+    dropTitle:'Drag & drop your file here',
     dropSub:'CapCut draft_content.json  ·  or any .srt file',
+    browseBtn:'Browse file…',
     dropHint:'No upload · Fully private',
-    tabClean:'🧹 Clean',
-    tabParticles:'🗣 Particles',
-    tabConvert:'🔄 SC / TC',
-    tabReplace:'✏️ Replace',
+    tabClean:'🧹 Clean',tabParticles:'🗣 Particles',tabConvert:'🔄 SC/TC',tabReplace:'✏️ Replace',
     removeEmpty:'Remove empty lines',removeEmptySub:'Skip lines with no text',
     mergeSame:'Merge consecutive duplicates',mergeSameSub:'Combine back-to-back identical subtitles',
-    trimSpaces:'Trim whitespace',trimSpacesSub:'Strip leading / trailing spaces from each line',
-    timeOffset:'Time offset',seconds:'seconds (positive or negative)',
-    particlesHint:'Click chips to toggle removal. Add your own custom words below.',
+    trimSpaces:'Trim whitespace',trimSpacesSub:'Strip leading/trailing spaces',
+    timeOffset:'Time offset',seconds:'seconds',
+    particlesHint:'Click chips to toggle removal. Add custom words below.',
     addCustomParticle:'Add',
     convertHint:'One-click bulk conversion of all subtitle text.',
-    s2t:'Simplified → Traditional 简→繁',
-    t2s:'Traditional → Simplified 繁→简',
-    convertNote:'Conversion uses a built-in character mapping table (common chars). For professional use, review the output.',
+    s2t:'Simplified → Traditional 简→繁',t2s:'Traditional → Simplified 繁→简',
+    convertNote:'Uses built-in character mapping. Review output for professional use.',
     textReplace:'Text replacement rules',addRule:'Add rule',
     findPlaceholder:'Find…',replacePlaceholder:'Replace with…',
     subtitleLines:' subtitle lines',
     exportSRT:'Export .srt',exportTXT:'Export .txt (timestamps)',exportPlain:'Export .txt (plain)',
     copyAll:'Copy all',clearAll:'Clear',
-    preview:'Subtitle Editor',editorHint:'Click text to edit · drag index to reorder',
+    preview:'Subtitle Editor',editorHint:'Click text to edit inline',
     errorTitle:'Error',errorBadFile:'Could not parse this file.',
     copied:'Copied!',
     rowDelete:'Del',rowSplit:'Split',rowMerge:'↓Merge',rowAdd:'+ Add',
   },
   'zh-TW':{
     tagline:'CapCut 字幕編輯器',
-    desc:'匯入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 檔。編輯、清理、轉換、匯出。100% 本機，不上傳。',
+    desc:'匯入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 檔。編輯、清理、轉換、匯出。100% 本機。',
     osGuideTitle:'📂 如何找到 CapCut 的存檔？',
     osGuideSub:'前往以下路徑，進入你的專案資料夾，把 draft_content.json 拖曳到這裡。',
-    osGuideNote:'請將 "user" 替換為你的實際用戶名稱。每個專案在 com.lveditor.draft 內都有獨立資料夾。',
-    dropTitle:'點擊或拖曳檔案',
+    osGuideNote:'請將 "user" 替換為你的實際用戶名稱。',
+    dropTitle:'將檔案拖曳到這裡',
     dropSub:'CapCut draft_content.json  ·  或任何 .srt 檔案',
+    browseBtn:'瀏覽檔案…',
     dropHint:'不上傳 · 完全私密',
-    tabClean:'🧹 清理',tabParticles:'🗣 語氣詞',tabConvert:'🔄 簡繁轉換',tabReplace:'✏️ 取代',
+    tabClean:'🧹 清理',tabParticles:'🗣 語氣詞',tabConvert:'🔄 簡繁',tabReplace:'✏️ 取代',
     removeEmpty:'移除空行',removeEmptySub:'跳過沒有文字的行',
     mergeSame:'合併連續重複行',mergeSameSub:'合併前後相同的字幕',
     trimSpaces:'修剪空白',trimSpacesSub:'移除每行首尾的多餘空格',
-    timeOffset:'時間偏移',seconds:'秒（正數或負數）',
+    timeOffset:'時間偏移',seconds:'秒',
     particlesHint:'點擊標籤以切換移除。可在下方新增自訂詞。',
     addCustomParticle:'新增',
     convertHint:'一鍵批量轉換所有字幕文字。',
     s2t:'簡體 → 繁體',t2s:'繁體 → 簡體',
-    convertNote:'使用內建字符對照表轉換（常用字）。專業用途請自行校對輸出結果。',
+    convertNote:'使用內建字符對照表。專業用途請自行校對。',
     textReplace:'文字取代規則',addRule:'新增規則',
     findPlaceholder:'尋找…',replacePlaceholder:'取代為…',
     subtitleLines:' 條字幕',
     exportSRT:'匯出 .srt',exportTXT:'匯出 .txt（含時間戳）',exportPlain:'匯出 .txt（純文字）',
     copyAll:'複製全部',clearAll:'清除',
-    preview:'字幕編輯器',editorHint:'點擊文字可編輯 · 拖曳序號可排序',
+    preview:'字幕編輯器',editorHint:'點擊文字可編輯',
     errorTitle:'錯誤',errorBadFile:'無法解析此檔案。',
     copied:'已複製！',
     rowDelete:'刪除',rowSplit:'分割',rowMerge:'↓合併',rowAdd:'+ 新增',
   },
   'zh-CN':{
     tagline:'CapCut 字幕编辑器',
-    desc:'导入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 文件。编辑、清理、转换、导出。100% 本地，不上传。',
+    desc:'导入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 文件。编辑、清理、转换、导出。100% 本地。',
     osGuideTitle:'📂 如何找到 CapCut 的存档？',
     osGuideSub:'前往以下路径，进入你的项目文件夹，把 draft_content.json 拖拽到这里。',
-    osGuideNote:'请将 "user" 替换为你的实际用户名。每个项目在 com.lveditor.draft 内都有独立文件夹。',
-    dropTitle:'点击或拖拽文件',
+    osGuideNote:'请将 "user" 替换为你的实际用户名。',
+    dropTitle:'将文件拖拽到这里',
     dropSub:'CapCut draft_content.json  ·  或任何 .srt 文件',
+    browseBtn:'浏览文件…',
     dropHint:'不上传 · 完全私密',
-    tabClean:'🧹 清理',tabParticles:'🗣 语气词',tabConvert:'🔄 简繁转换',tabReplace:'✏️ 替换',
+    tabClean:'🧹 清理',tabParticles:'🗣 语气词',tabConvert:'🔄 简繁',tabReplace:'✏️ 替换',
     removeEmpty:'移除空行',removeEmptySub:'跳过没有文字的行',
     mergeSame:'合并连续重复行',mergeSameSub:'合并前后相同的字幕',
     trimSpaces:'修剪空白',trimSpacesSub:'移除每行首尾的多余空格',
-    timeOffset:'时间偏移',seconds:'秒（正数或负数）',
+    timeOffset:'时间偏移',seconds:'秒',
     particlesHint:'点击标签以切换移除。可在下方添加自定义词。',
     addCustomParticle:'添加',
     convertHint:'一键批量转换所有字幕文字。',
     s2t:'简体 → 繁体',t2s:'繁体 → 简体',
-    convertNote:'使用内置字符对照表转换（常用字）。专业用途请自行校对输出结果。',
+    convertNote:'使用内置字符对照表。专业用途请自行校对。',
     textReplace:'文字替换规则',addRule:'添加规则',
     findPlaceholder:'查找…',replacePlaceholder:'替换为…',
     subtitleLines:' 条字幕',
     exportSRT:'导出 .srt',exportTXT:'导出 .txt（含时间戳）',exportPlain:'导出 .txt（纯文本）',
     copyAll:'复制全部',clearAll:'清除',
-    preview:'字幕编辑器',editorHint:'点击文字可编辑 · 拖拽序号可排序',
+    preview:'字幕编辑器',editorHint:'点击文字可编辑',
     errorTitle:'错误',errorBadFile:'无法解析此文件。',
     copied:'已复制！',
     rowDelete:'删除',rowSplit:'分割',rowMerge:'↓合并',rowAdd:'+ 新增',
   }
 };
-
 let currentLang='en';
 function t(k){return(i18n[currentLang]||i18n.en)[k]||k;}
 function applyLang(lang){
@@ -331,13 +293,11 @@ function applyLang(lang){
   document.querySelectorAll('.replace-with').forEach(i=>i.placeholder=t('replacePlaceholder'));
   renderOsGuide();
   renderParticleChips();
-  if(parsedSubs.length) renderResults();
+  if(parsedSubs.length)renderResults();
 }
 document.querySelectorAll('.lang-btn').forEach(b=>b.addEventListener('click',()=>applyLang(b.dataset.lang)));
 
-// ============================
 // Tabs
-// ============================
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -347,11 +307,9 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
   });
 });
 
-// ============================
 // OS Guide
-// ============================
 function detectOS(){const ua=navigator.userAgent;if(/iPad|iPhone|iPod/.test(ua))return'ios';if(/Android/.test(ua))return'android';if(/Win/.test(ua))return'windows';if(/Mac/.test(ua))return'mac';return'other';}
-const osPaths={windows:'C:\\Users\\user\\AppData\\Local\\CapCut\\User Data\\Projects\\com.lveditor.draft\\',mac:'/Users/user/Movies/CapCut/User Data/Projects/com.lveditor.draft/',ios:'Files app → On My iPhone → CapCut → Projects → com.lveditor.draft',android:'/sdcard/Android/data/com.lemon.lvoideo/files/draft/',other:'Check your CapCut app settings for the project file location.'};
+const osPaths={windows:'C:\\Users\\user\\AppData\\Local\\CapCut\\User Data\\Projects\\com.lveditor.draft\\',mac:'/Users/user/Movies/CapCut/User Data/Projects/com.lveditor.draft/',ios:'Files → On My iPhone → CapCut → Projects → com.lveditor.draft',android:'/sdcard/Android/data/com.lemon.lvoideo/files/draft/',other:'Check CapCut app settings for project file location.'};
 const osIcons={windows:'🪟',mac:'🍎',ios:'📱',android:'🤖',other:'🐧'};
 function renderOsGuide(){const os=detectOS();document.getElementById('os-icon').textContent=osIcons[os];document.getElementById('os-path').textContent=osPaths[os];}
 (function(){
@@ -362,132 +320,111 @@ function renderOsGuide(){const os=detectOS();document.getElementById('os-icon').
 })();
 
 // ============================
-// Particle Chips
+// FILE INPUT — completely separated from drop zone
+// ============================
+const fileInput = document.getElementById('file-input');
+const dropZone  = document.getElementById('drop-zone');
+
+// Click on drop-zone body OR browse button → trigger file picker
+dropZone.addEventListener('click', () => fileInput.click());
+document.getElementById('browse-btn').addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+
+// file selected via picker
+fileInput.addEventListener('change', e => {
+  if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);
+  fileInput.value = ''; // reset so same file can be re-selected
+});
+
+// Drag & drop — prevent default on entire document
+document.addEventListener('dragover',  e => e.preventDefault());
+document.addEventListener('drop',      e => e.preventDefault());
+
+// Visual feedback
+dropZone.addEventListener('dragenter', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length) handleFile(files[0]);
+});
+
+// ============================
+// Particles
 // ============================
 const DEFAULT_PARTICLES=[
-  {label:'嗯',chars:'嗯'},
-  {label:'啊',chars:'啊'},
-  {label:'哦',chars:'哦'},
-  {label:'呢',chars:'呢'},
-  {label:'嗳/唉',chars:'嗳唉'},
-  {label:'那/那个',chars:'那那个'},
-  {label:'就',chars:'就'},
-  {label:'然后/然後',chars:'然后然後'},
-  {label:'唔',chars:'唔'},
-  {label:'咁/这样',chars:'咁这样這樣'},
-  {label:'系/是',chars:'系'},
-  {label:'即係/就是',chars:'即係即是就是'},
-  {label:'吧',chars:'吧'},
-  {label:'啦',chars:'啦'},
-  {label:'嘛',chars:'嘛'},
+  {label:'嗯',chars:'嗯'},{label:'啊',chars:'啊'},{label:'哦',chars:'哦'},{label:'呢',chars:'呢'},
+  {label:'嗳/唉',chars:'嗳唉'},{label:'那/那个',chars:'那那个'},{label:'就',chars:'就'},
+  {label:'然后/然後',chars:'然后然後'},{label:'唔',chars:'唔'},{label:'咁/这样',chars:'咁这样這樣'},
+  {label:'系/是',chars:'系'},{label:'即係/就是',chars:'即係即是就是'},{label:'吧',chars:'吧'},
+  {label:'啦',chars:'啦'},{label:'嘛',chars:'嘛'},
 ];
 let particleState={};
 DEFAULT_PARTICLES.forEach(p=>particleState[p.label]=true);
-
 function renderParticleChips(){
-  const container=document.getElementById('particle-chips');
-  container.innerHTML='';
+  const c=document.getElementById('particle-chips');c.innerHTML='';
   Object.keys(particleState).forEach(label=>{
     const chip=document.createElement('span');
     chip.className='particle-chip'+(particleState[label]?' active':'');
     chip.textContent=label;
-    chip.addEventListener('click',()=>{
-      particleState[label]=!particleState[label];
-      chip.classList.toggle('active',particleState[label]);
-      if(parsedSubs.length)renderResults();
-    });
-    container.appendChild(chip);
+    chip.addEventListener('click',()=>{particleState[label]=!particleState[label];chip.classList.toggle('active',particleState[label]);if(parsedSubs.length)renderResults();});
+    c.appendChild(chip);
   });
 }
-
 document.getElementById('particle-add-btn').addEventListener('click',()=>{
-  const inp=document.getElementById('particle-custom');
-  const val=inp.value.trim();
-  if(!val)return;
-  particleState[val]=true;
-  inp.value='';
-  renderParticleChips();
-  if(parsedSubs.length)renderResults();
+  const inp=document.getElementById('particle-custom'),val=inp.value.trim();
+  if(!val)return;particleState[val]=true;inp.value='';renderParticleChips();if(parsedSubs.length)renderResults();
 });
 document.getElementById('particle-custom').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('particle-add-btn').click();});
-
 function buildParticleRegex(){
-  const activeChars=Object.entries(particleState).filter(([,v])=>v).map(([label])=>{
-    const found=DEFAULT_PARTICLES.find(p=>p.label===label);
-    return found?found.chars:label;
-  }).join('');
-  if(!activeChars)return null;
-  return new RegExp('['+activeChars+']+','g');
+  const chars=Object.entries(particleState).filter(([,v])=>v).map(([label])=>{const f=DEFAULT_PARTICLES.find(p=>p.label===label);return f?f.chars:label;}).join('');
+  return chars?new RegExp('['+chars+']+','g'):null;
 }
 
 // ============================
-// SC ↔ TC Conversion (common char table)
+// SC <-> TC
 // ============================
-const SC2TC="";
-const TC2SC="";
-// Large mapping tables — we use OpenCC-lite approach with the most common 2000 pairs
-const S2T_MAP={"爱":"愛","安":"安","按":"按","奥":"奧","白":"白","办":"辦","帮":"幫","报":"報","备":"備","毕":"畢","边":"邊","变":"變","标":"標","别":"別","补":"補","不":"不","财":"財","才":"才","残":"殘","层":"層","产":"產","长":"長","厂":"廠","场":"場","车":"車","彻":"徹","陈":"陳","称":"稱","处":"處","础":"礎","传":"傳","创":"創","从":"從","错":"錯","达":"達","带":"帶","单":"單","当":"當","导":"導","岛":"島","得":"得","灯":"燈","邓":"鄧","点":"點","电":"電","东":"東","动":"動","断":"斷","队":"隊","对":"對","夺":"奪","发":"發","范":"範","飞":"飛","费":"費","奋":"奮","风":"風","复":"復","该":"該","赶":"趕","个":"個","给":"給","更":"更","购":"購","关":"關","广":"廣","归":"歸","国":"國","过":"過","还":"還","汉":"漢","号":"號","合":"合","轰":"轟","后":"後","护":"護","华":"華","画":"畫","话":"話","坏":"壞","欢":"歡","换":"換","黄":"黃","会":"會","几":"幾","极":"極","记":"記","际":"際","继":"繼","价":"價","见":"見","间":"間","将":"將","讲":"講","奖":"獎","进":"進","经":"經","竟":"竟","举":"舉","开":"開","阔":"闊","来":"來","乐":"樂","类":"類","两":"兩","辆":"輛","临":"臨","岭":"嶺","领":"領","妈":"媽","买":"買","满":"滿","门":"門","灭":"滅","庙":"廟","难":"難","脑":"腦","你":"你","酿":"釀","弄":"弄","农":"農","怕":"怕","盘":"盤","配":"配","喷":"噴","篇":"篇","飘":"飄","苹":"蘋","凭":"憑","破":"破","期":"期","启":"啟","气":"氣","迁":"遷","签":"簽","强":"強","亲":"親","情":"情","请":"請","区":"區","权":"權","确":"確","让":"讓","热":"熱","认":"認","荣":"榮","软":"軟","胜":"勝","时":"時","实":"實","师":"師","说":"說","书":"書","树":"樹","数":"數","双":"雙","谁":"誰","随":"隨","岁":"歲","孙":"孫","损":"損","台":"臺","态":"態","谈":"談","叹":"嘆","条":"條","听":"聽","铁":"鐵","头":"頭","图":"圖","团":"團","万":"萬","为":"為","卫":"衛","问":"問","务":"務","无":"無","习":"習","戏":"戲","现":"現","线":"線","乡":"鄉","响":"響","向":"向","项":"項","销":"銷","协":"協","选":"選","学":"學","压":"壓","亚":"亞","严":"嚴","岩":"岩","验":"驗","样":"樣","页":"頁","义":"義","医":"醫","艺":"藝","议":"議","因":"因","应":"應","营":"營","优":"優","园":"園","远":"遠","运":"運","杂":"雜","脏":"臟","增":"增","战":"戰","张":"張","这":"這","针":"針","证":"證","郑":"鄭","职":"職","质":"質","种":"種","众":"眾","周":"周","注":"注","转":"轉","庄":"莊","准":"準","资":"資","综":"綜","总":"總","组":"組","纵":"縱","最":"最","历":"歷","礼":"禮","联":"聯","辞":"辭","厕":"廁","宝":"寶","尝":"嘗","偿":"償","冲":"衝","宠":"寵","虫":"蟲","纯":"純","担":"擔","荡":"蕩","递":"遞","点":"點","调":"調","度":"度","队":"隊","恶":"惡","父":"父","干":"幹","钢":"鋼","汇":"匯","机":"機","积":"積","据":"據","绝":"絕","决":"決","克":"克","困":"困","朗":"朗","丽":"麗","陆":"陸","率":"率","论":"論","庞":"龐","且":"且","然":"然","扰":"擾","认":"認","设":"設","声":"聲","式":"式","试":"試","寿":"壽","税":"稅","态":"態","体":"體","统":"統","图":"圖","脱":"脫","网":"網","卧":"臥","误":"誤","显":"顯","县":"縣","险":"險","献":"獻","像":"像","兴":"興","续":"續","宣":"宣","言":"言","阳":"陽","养":"養","忆":"憶","阴":"陰","印":"印","赢":"贏","邮":"郵","语":"語","阅":"閱","云":"雲","脏":"臟","责":"責","债":"債","站":"站","涨":"漲","折":"折","终":"終","钟":"鐘","专":"專","装":"裝","坐":"坐"};
+const S2T_MAP={"爱":"愛","办":"辦","帮":"幫","报":"報","备":"備","边":"邊","变":"變","标":"標","别":"別","补":"補","财":"財","残":"殘","层":"層","产":"產","长":"長","厂":"廠","场":"場","车":"車","彻":"徹","陈":"陳","称":"稱","处":"處","础":"礎","传":"傳","创":"創","从":"從","错":"錯","达":"達","带":"帶","单":"單","当":"當","导":"導","岛":"島","灯":"燈","点":"點","电":"電","东":"東","动":"動","断":"斷","队":"隊","对":"對","夺":"奪","发":"發","范":"範","飞":"飛","费":"費","奋":"奮","风":"風","复":"復","该":"該","赶":"趕","个":"個","给":"給","购":"購","关":"關","广":"廣","归":"歸","国":"國","过":"過","还":"還","汉":"漢","号":"號","轰":"轟","后":"後","护":"護","华":"華","画":"畫","话":"話","坏":"壞","欢":"歡","换":"換","黄":"黃","会":"會","几":"幾","极":"極","记":"記","际":"際","继":"繼","价":"價","见":"見","间":"間","将":"將","讲":"講","奖":"獎","进":"進","经":"經","举":"舉","开":"開","阔":"闊","来":"來","乐":"樂","类":"類","两":"兩","辆":"輛","临":"臨","岭":"嶺","领":"領","妈":"媽","买":"買","满":"滿","门":"門","灭":"滅","庙":"廟","难":"難","脑":"腦","酿":"釀","农":"農","盘":"盤","喷":"噴","飘":"飄","苹":"蘋","凭":"憑","启":"啟","气":"氣","迁":"遷","签":"簽","强":"強","亲":"親","请":"請","区":"區","权":"權","确":"確","让":"讓","热":"熱","认":"認","荣":"榮","软":"軟","胜":"勝","时":"時","实":"實","师":"師","说":"說","书":"書","树":"樹","数":"數","双":"雙","谁":"誰","随":"隨","岁":"歲","孙":"孫","损":"損","台":"臺","态":"態","谈":"談","叹":"嘆","条":"條","听":"聽","铁":"鐵","头":"頭","图":"圖","团":"團","万":"萬","为":"為","卫":"衛","问":"問","务":"務","无":"無","习":"習","戏":"戲","现":"現","线":"線","乡":"鄉","响":"響","项":"項","销":"銷","协":"協","选":"選","学":"學","压":"壓","亚":"亞","严":"嚴","验":"驗","样":"樣","页":"頁","义":"義","医":"醫","艺":"藝","议":"議","应":"應","营":"營","优":"優","园":"園","远":"遠","运":"運","杂":"雜","脏":"臟","战":"戰","张":"張","这":"這","针":"針","证":"證","郑":"鄭","职":"職","质":"質","种":"種","众":"眾","注":"注","转":"轉","庄":"莊","准":"準","资":"資","综":"綜","总":"總","组":"組","纵":"縱","历":"歷","礼":"禮","联":"聯","辞":"辭","宝":"寶","尝":"嘗","偿":"償","冲":"衝","宠":"寵","虫":"蟲","纯":"純","担":"擔","荡":"蕩","递":"遞","调":"調","恶":"惡","干":"幹","钢":"鋼","汇":"匯","机":"機","积":"積","据":"據","绝":"絕","决":"決","朗":"朗","丽":"麗","陆":"陸","论":"論","庞":"龐","然":"然","扰":"擾","设":"設","声":"聲","试":"試","寿":"壽","税":"稅","体":"體","统":"統","脱":"脫","网":"網","误":"誤","显":"顯","县":"縣","险":"險","献":"獻","兴":"興","续":"續","阳":"陽","养":"養","忆":"憶","阴":"陰","赢":"贏","邮":"郵","语":"語","阅":"閱","云":"雲","责":"責","债":"債","涨":"漲","终":"終","钟":"鐘","专":"專","装":"裝"};
 const T2S_MAP={};
 Object.entries(S2T_MAP).forEach(([s,t])=>{if(!T2S_MAP[t])T2S_MAP[t]=s;});
-
-function convertText(text,dir){
-  const map=dir==='s2t'?S2T_MAP:T2S_MAP;
-  return text.split('').map(c=>map[c]||c).join('');
-}
-
-window.convertScript=function(dir){
-  parsedSubs=parsedSubs.map(s=>({...s,text:convertText(s.text,dir)}));
-  renderResults();
-};
+function convertText(text,dir){const map=dir==='s2t'?S2T_MAP:T2S_MAP;return text.split('').map(c=>map[c]||c).join('');}
+window.convertScript=function(dir){parsedSubs=parsedSubs.map(s=>({...s,text:convertText(s.text,dir)}));renderResults();};
 
 // ============================
-// Replace Rules UI
+// Replace Rules
 // ============================
 let replaceRules=[];
 function addReplaceRow(find='',rep=''){
-  const id=Date.now()+'_'+Math.random();
-  replaceRules.push({id,find,rep});
-  const row=document.createElement('div');
-  row.className='replace-row';
-  row.dataset.id=id;
-  row.innerHTML=`<input type="text" value="${escHtml(find)}" placeholder="${t('findPlaceholder')}" class="replace-find flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500"><svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg><input type="text" value="${escHtml(rep)}" placeholder="${t('replacePlaceholder')}" class="replace-with flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500"><button onclick="removeReplaceRow('${id}')" class="text-slate-600 hover:text-red-400 transition-colors shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
+  const id=Date.now()+'_'+Math.random();replaceRules.push({id,find,rep});
+  const row=document.createElement('div');row.className='replace-row';row.dataset.id=id;
+  row.innerHTML=`<input type="text" value="${escHtml(find)}" placeholder="${t('findPlaceholder')}" class="replace-find flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500"><svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg><input type="text" value="${escHtml(rep)}" placeholder="${t('replacePlaceholder')}" class="replace-with flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500"><button onclick="removeReplaceRow('${id}')" class="text-slate-600 hover:text-red-400 shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
   row.querySelector('.replace-find').addEventListener('input',e=>{const r=replaceRules.find(x=>x.id===id);if(r){r.find=e.target.value;if(parsedSubs.length)renderResults();}});
   row.querySelector('.replace-with').addEventListener('input',e=>{const r=replaceRules.find(x=>x.id===id);if(r){r.rep=e.target.value;if(parsedSubs.length)renderResults();}});
   document.getElementById('replace-list').appendChild(row);
 }
-window.removeReplaceRow=function(id){
-  replaceRules=replaceRules.filter(r=>r.id!==id);
-  document.querySelector(`.replace-row[data-id="${id}"]`)?.remove();
-  if(parsedSubs.length)renderResults();
-};
+window.removeReplaceRow=function(id){replaceRules=replaceRules.filter(r=>r.id!==id);document.querySelector(`.replace-row[data-id="${id}"]`)?.remove();if(parsedSubs.length)renderResults();};
 document.getElementById('add-replace-btn').addEventListener('click',()=>addReplaceRow());
 
 // ============================
-// CapCut JSON Parser
+// Parsers
 // ============================
 function parseCapcut(data){
-  const subs=[];
-  const mats=data.materials||{};
+  const subs=[],mats=data.materials||{};
   for(const cb of(mats.subtitle_cache_info||[])){
     for(const s of(cb.sentence_list||cb.sentencelist||cb.sentences||[])){
-      const st=s.start_time??s.starttime??null;
-      const et=s.end_time??s.endtime??null;
-      const tx=s.text??'';
+      const st=s.start_time??s.starttime??null,et=s.end_time??s.endtime??null,tx=s.text??'';
       if(st===null||et===null||!tx.trim())continue;
       subs.push({start:st/1e6,end:et/1e6,text:tx.trim()});
     }
   }
   if(!subs.length){
-    const tracks=data.tracks||[];
-    const tm={};
-    for(const m of(mats.texts||[]))if(m.id)tm[m.id]=m;
-    for(const track of tracks){
+    const tm={};for(const m of(mats.texts||[]))if(m.id)tm[m.id]=m;
+    for(const track of(data.tracks||[])){
       if(track.type!=='text')continue;
       for(const seg of(track.segments||[])){
-        const tr=seg.target_timerange||{};
-        const st=(tr.start||0)/1e6,dur=(tr.duration||0)/1e6;
-        const mat=tm[seg.material_id];
-        let tx='';
+        const tr=seg.target_timerange||{},st=(tr.start||0)/1e6,dur=(tr.duration||0)/1e6;
+        const mat=tm[seg.material_id];let tx='';
         try{const p=typeof(mat||seg).content==='string'?JSON.parse((mat||seg).content):(mat||seg).content;tx=(p&&typeof p.text==='string')?p.text:String((mat||seg).content||'');}catch{tx=String((mat&&(mat.content||mat.text))||'');}
         if(tx.trim())subs.push({start:st,end:st+dur,text:tx.trim()});
       }
@@ -495,145 +432,73 @@ function parseCapcut(data){
   }
   if(!subs.length){
     for(const m of(mats.texts||[])){
-      const tr=m.timerange||{};
-      const st=(tr.start||0)/1e6,dur=(tr.duration||0)/1e6;
-      let tx='';
+      const tr=m.timerange||{},st=(tr.start||0)/1e6,dur=(tr.duration||0)/1e6;let tx='';
       try{const p=typeof m.content==='string'?JSON.parse(m.content):m.content;tx=(p&&typeof p.text==='string')?p.text:String(m.content||m.text||'');}catch{tx=String(m.content||m.text||'');}
       if(tx.trim())subs.push({start:st,end:st+dur,text:tx.trim()});
     }
   }
   return subs.sort((a,b)=>a.start-b.start);
 }
-
-// ============================
-// SRT Parser
-// ============================
 function parseSRT(raw){
-  const subs=[];
-  const blocks=raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split(/\n\n+/);
+  const subs=[],blocks=raw.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split(/\n\n+/);
   for(const block of blocks){
-    const lines=block.trim().split('\n');
-    if(lines.length<2)continue;
-    const timeMatch=lines.find(l=>/-->/.test(l));
-    if(!timeMatch)continue;
-    const [ts,te]=timeMatch.split('-->').map(s=>srtTimeToSec(s.trim()));
-    const textLines=lines.slice(lines.indexOf(timeMatch)+1).filter(l=>l.trim());
+    const lines=block.trim().split('\n');if(lines.length<2)continue;
+    const tidx=lines.findIndex(l=>/-->/.test(l));if(tidx<0)continue;
+    const[ts,te]=lines[tidx].split('-->').map(s=>srtTimeToSec(s.trim()));
+    const textLines=lines.slice(tidx+1).filter(l=>l.trim());
     if(textLines.length)subs.push({start:ts,end:te,text:textLines.join(' ')});
   }
   return subs;
 }
-function srtTimeToSec(s){
-  const m=s.match(/(\d+):(\d+):(\d+)[,\.](\d+)/);
-  if(!m)return 0;
-  return parseInt(m[1])*3600+parseInt(m[2])*60+parseInt(m[3])+parseInt(m[4].padEnd(3,'0'))/1000;
-}
+function srtTimeToSec(s){const m=s.match(/(\d+):(\d+):(\d+)[,\.](\d+)/);if(!m)return 0;return+m[1]*3600+ +m[2]*60+ +m[3]+ +m[4].padEnd(3,'0')/1000;}
 
 // ============================
-// Apply Tools
+// applyTools
 // ============================
 function applyTools(subs){
   const offset=parseFloat(document.getElementById('time-offset').value)||0;
   const doEmpty=document.getElementById('toggle-empty').checked;
   const doMerge=document.getElementById('toggle-merge').checked;
   const doTrim=document.getElementById('toggle-trim').checked;
-  const pRegex=buildParticleRegex();
-
+  const pRe=buildParticleRegex();
   let r=subs.map(s=>({...s,start:Math.max(0,s.start+offset),end:Math.max(0,s.end+offset)}));
   r=r.map(s=>{let tx=s.text;for(const rule of replaceRules)if(rule.find)tx=tx.split(rule.find).join(rule.rep);return{...s,text:tx};});
-  if(pRegex)r=r.map(s=>({...s,text:s.text.replace(pRegex,'').replace(/\s+/g,' ').trim()}));
+  if(pRe)r=r.map(s=>({...s,text:s.text.replace(pRe,'').replace(/\s+/g,' ').trim()}));
   if(doTrim)r=r.map(s=>({...s,text:s.text.trim()}));
   if(doEmpty)r=r.filter(s=>s.text.trim().length>0);
   if(doMerge){const m=[];for(const s of r){if(m.length&&m[m.length-1].text===s.text)m[m.length-1].end=s.end;else m.push({...s});}r=m;}
   return r;
 }
-
-function toSRTTime(sec){
-  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60),ms=Math.round((sec-Math.floor(sec))*1000);
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
-}
+function toSRTTime(sec){const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60),ms=Math.round((sec-Math.floor(sec))*1000);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;}
 function buildSRT(subs){return subs.map((s,i)=>`${i+1}\n${toSRTTime(s.start)} --> ${toSRTTime(s.end)}\n${s.text}`).join('\n\n');}
 function buildTXT(subs){return subs.map(s=>`[${toSRTTime(s.start)} --> ${toSRTTime(s.end)}]\n${s.text}`).join('\n\n');}
 function buildPlain(subs){return subs.map(s=>s.text).join('\n');}
 
 // ============================
-// Inline Editing of parsedSubs
+// Inline edit helpers
 // ============================
-function updateSub(idx,field,val){
-  if(idx<0||idx>=parsedSubs.length)return;
-  parsedSubs[idx][field]=val;
-}
-window.deleteSub=function(idx){
-  parsedSubs.splice(idx,1);
-  renderResults();
-};
-window.splitSub=function(idx){
-  const s=parsedSubs[idx];
-  const mid=(s.start+s.end)/2;
-  parsedSubs.splice(idx,1,{start:s.start,end:mid,text:s.text},{start:mid,end:s.end,text:s.text});
-  renderResults();
-};
-window.mergeSub=function(idx){
-  if(idx>=parsedSubs.length-1)return;
-  const a=parsedSubs[idx],b=parsedSubs[idx+1];
-  parsedSubs.splice(idx,2,{start:a.start,end:b.end,text:a.text+' '+b.text});
-  renderResults();
-};
-window.addSubAfter=function(idx){
-  const prev=parsedSubs[idx];
-  parsedSubs.splice(idx+1,0,{start:prev.end,end:prev.end+2,text:''});
-  renderResults();
-};
+let parsedSubs=[],currentFileName='subtitles';
+function updateSub(idx,field,val){if(idx>=0&&idx<parsedSubs.length)parsedSubs[idx][field]=val;}
+window.deleteSub=function(idx){parsedSubs.splice(idx,1);renderResults();};
+window.splitSub=function(idx){const s=parsedSubs[idx],mid=(s.start+s.end)/2;parsedSubs.splice(idx,1,{start:s.start,end:mid,text:s.text},{start:mid,end:s.end,text:s.text});renderResults();};
+window.mergeSub=function(idx){if(idx>=parsedSubs.length-1)return;const a=parsedSubs[idx],b=parsedSubs[idx+1];parsedSubs.splice(idx,2,{start:a.start,end:b.end,text:a.text+' '+b.text});renderResults();};
+window.addSubAfter=function(idx){const p=parsedSubs[idx];parsedSubs.splice(idx+1,0,{start:p.end,end:p.end+2,text:''});renderResults();};
 
 // ============================
 // Render
 // ============================
-let parsedSubs=[];
-let currentFileName='subtitles';
-
 function renderResults(){
   const processed=applyTools(parsedSubs);
   document.getElementById('subtitle-count').textContent=processed.length;
   document.getElementById('file-name-display').textContent=currentFileName;
-  const list=document.getElementById('preview-list');
-  list.innerHTML='';
+  const list=document.getElementById('preview-list');list.innerHTML='';
   processed.forEach((s,i)=>{
-    const row=document.createElement('div');
-    row.className='subtitle-row px-3 py-2.5 flex gap-3 items-start';
-    row.dataset.idx=i;
-    row.innerHTML=`
-      <span class="text-xs text-slate-600 font-mono w-6 shrink-0 pt-1 text-right select-none cursor-grab" title="drag to reorder">${i+1}</span>
-      <div class="flex-1 min-w-0">
-        <textarea class="edit-input" rows="1" data-idx="${i}">${escHtml(s.text)}</textarea>
-        <div class="flex gap-2 mt-1 items-center">
-          <input class="time-input" type="text" value="${toSRTTime(s.start)}" data-idx="${i}" data-field="start" title="start time">
-          <span class="text-slate-600 text-xs">→</span>
-          <input class="time-input" type="text" value="${toSRTTime(s.end)}" data-idx="${i}" data-field="end" title="end time">
-        </div>
-      </div>
-      <div class="flex flex-col gap-1 shrink-0 mt-0.5">
-        <button onclick="deleteSub(${i})" class="row-btn text-red-400 hover:bg-red-900/30" data-i18n-text="rowDelete"></button>
-        <button onclick="splitSub(${i})" class="row-btn text-amber-400 hover:bg-amber-900/30" data-i18n-text="rowSplit"></button>
-        <button onclick="mergeSub(${i})" class="row-btn text-sky-400 hover:bg-sky-900/30" data-i18n-text="rowMerge"></button>
-        <button onclick="addSubAfter(${i})" class="row-btn text-emerald-400 hover:bg-emerald-900/30" data-i18n-text="rowAdd"></button>
-      </div>`;
-    // fill i18n row button labels
-    row.querySelectorAll('[data-i18n-text]').forEach(b=>b.textContent=t(b.dataset.i18nText));
-    // textarea auto-resize + live edit
+    const row=document.createElement('div');row.className='subtitle-row px-3 py-2.5 flex gap-3 items-start';
+    row.innerHTML=`<span class="text-xs text-slate-600 font-mono w-6 shrink-0 pt-1 text-right select-none">${i+1}</span><div class="flex-1 min-w-0"><textarea class="edit-input" rows="1" data-idx="${i}">${escHtml(s.text)}</textarea><div class="flex gap-2 mt-1 items-center"><input class="time-input" type="text" value="${toSRTTime(s.start)}" data-idx="${i}" data-field="start"><span class="text-slate-600 text-xs">→</span><input class="time-input" type="text" value="${toSRTTime(s.end)}" data-idx="${i}" data-field="end"></div></div><div class="flex flex-col gap-1 shrink-0 mt-0.5"><button onclick="deleteSub(${i})" class="row-btn text-red-400 hover:bg-red-900/30">${t('rowDelete')}</button><button onclick="splitSub(${i})" class="row-btn text-amber-400 hover:bg-amber-900/30">${t('rowSplit')}</button><button onclick="mergeSub(${i})" class="row-btn text-sky-400 hover:bg-sky-900/30">${t('rowMerge')}</button><button onclick="addSubAfter(${i})" class="row-btn text-emerald-400 hover:bg-emerald-900/30">${t('rowAdd')}</button></div>`;
     const ta=row.querySelector('textarea');
-    ta.style.height='auto';
-    ta.addEventListener('input',()=>{
-      ta.style.height='auto';
-      ta.style.height=ta.scrollHeight+'px';
-      updateSub(parseInt(ta.dataset.idx),'text',ta.value);
-    });
+    ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';updateSub(parseInt(ta.dataset.idx),'text',ta.value);});
     setTimeout(()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';},0);
-    // time inputs live edit
-    row.querySelectorAll('.time-input').forEach(inp=>{
-      inp.addEventListener('change',()=>{
-        const sec=srtTimeToSec(inp.value);
-        if(!isNaN(sec))updateSub(parseInt(inp.dataset.idx),inp.dataset.field,sec);
-      });
-    });
+    row.querySelectorAll('.time-input').forEach(inp=>inp.addEventListener('change',()=>{const sec=srtTimeToSec(inp.value);if(!isNaN(sec))updateSub(+inp.dataset.idx,inp.dataset.field,sec);}));
     list.appendChild(row);
   });
   document.getElementById('results-panel').classList.remove('hidden');
@@ -641,28 +506,20 @@ function renderResults(){
 }
 
 // ============================
-// File Handling
+// Handle file
 // ============================
-const dropZone=document.getElementById('drop-zone');
-const fileInput=document.getElementById('file-input');
-['dragenter','dragover','dragleave','drop'].forEach(e=>document.body.addEventListener(e,ev=>{ev.preventDefault();ev.stopPropagation();}));
-['dragenter','dragover'].forEach(e=>dropZone.addEventListener(e,()=>dropZone.classList.add('drag-over')));
-['dragleave','drop'].forEach(e=>dropZone.addEventListener(e,()=>dropZone.classList.remove('drag-over')));
-dropZone.addEventListener('drop',e=>{if(e.dataTransfer?.files?.length)handleFile(e.dataTransfer.files[0]);});
-fileInput.addEventListener('change',e=>{if(e.target.files?.length)handleFile(e.target.files[0]);});
-
 async function handleFile(file){
   document.getElementById('error-msg').classList.add('hidden');
   try{
     const raw=await file.text();
     const name=file.name.toLowerCase();
-    if(name.endsWith('.srt')||(!name.endsWith('.json')&&raw.trim().match(/^\d+\s*\n/m))){
+    if(name.endsWith('.srt')){
       parsedSubs=parseSRT(raw);
       if(!parsedSubs.length)throw new Error('No valid SRT blocks found.');
     } else {
       const json=JSON.parse(raw);
       parsedSubs=parseCapcut(json);
-      if(!parsedSubs.length)throw new Error('No subtitle tracks found. Make sure the file has AI subtitles (speech-to-text).');
+      if(!parsedSubs.length)throw new Error('No subtitle tracks found. Make sure the project has AI speech-to-text subtitles.');
     }
     currentFileName=file.name.replace(/\.(json|srt)$/i,'');
     document.getElementById('tools-panel').classList.remove('hidden');
@@ -673,42 +530,29 @@ async function handleFile(file){
   }
 }
 
-// ============================
-// Export & Utility
-// ============================
 ['toggle-empty','toggle-merge','toggle-trim'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{if(parsedSubs.length)renderResults();}));
 document.getElementById('time-offset').addEventListener('input',()=>{if(parsedSubs.length)renderResults();});
 
 window.exportFile=function(type){
-  const p=applyTools(parsedSubs);
-  const map={srt:[buildSRT(p),'srt'],txt:[buildTXT(p),'txt'],plain:[buildPlain(p),'txt']};
+  const p=applyTools(parsedSubs),map={srt:[buildSRT(p),'srt'],txt:[buildTXT(p),'txt'],plain:[buildPlain(p),'txt']};
   const[content,ext]=map[type];
   const blob=new Blob(['\uFEFF'+content],{type:'text/plain;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=`${currentFileName}.${ext}`;a.click();
-  URL.revokeObjectURL(url);
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`${currentFileName}.${ext}`;a.click();URL.revokeObjectURL(url);
 };
-
 window.copyAllSubs=function(){
   navigator.clipboard.writeText(buildPlain(applyTools(parsedSubs))).then(()=>{
-    const btn=document.querySelector('[onclick="copyAllSubs()"]');
-    if(!btn)return;
-    const orig=btn.innerHTML;
-    btn.textContent=t('copied');
-    btn.classList.add('bg-green-600');btn.classList.remove('bg-slate-700');
+    const btn=document.querySelector('[onclick="copyAllSubs()"]');if(!btn)return;
+    const orig=btn.innerHTML;btn.textContent=t('copied');btn.classList.add('bg-green-600');btn.classList.remove('bg-slate-700');
     setTimeout(()=>{btn.innerHTML=orig;btn.classList.remove('bg-green-600');btn.classList.add('bg-slate-700');},1800);
   });
 };
-
 window.clearAll=function(){
-  parsedSubs=[];
+  parsedSubs=[];currentFileName='subtitles';
   document.getElementById('results-panel').classList.add('hidden');
   document.getElementById('tools-panel').classList.add('hidden');
   document.getElementById('preview-list').innerHTML='';
-  fileInput.value='';
 };
-
 function showError(msg){document.getElementById('error-text').textContent=msg;document.getElementById('error-msg').classList.remove('hidden');}
 function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 </script>
