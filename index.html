@@ -425,43 +425,80 @@ window.removeReplaceRow = function(id) {
 document.getElementById('add-replace-btn').addEventListener('click', ()=>addReplaceRow());
 
 // ==========================================
-// CapCut JSON Parser
+// CapCut JSON Parser — subtitle_cache_info / sentencelist
 // ==========================================
-const MODAL_PARTICLES = /[嗯啊哦嗳那就然后然後唔系即係即是]/g;
+const MODAL_PARTICLES = /[嗯啊哦嗳那就然后然後唔系即係即是]+/g;
 
 function parseCapcut(data) {
-  // Try tracks first (newer CapCut format)
-  const tracks = data.tracks || [];
-  let segments = [];
-  for (const track of tracks) {
-    if (track.type === 'text' || track.attribute === 1) {
-      segments = segments.concat(track.segments || []);
+  const subs = [];
+
+  // ── Strategy 1: materials.subtitle_cache_info[].sentencelist[]
+  // This is the format used by auto-transcribe / AI subtitle in CapCut
+  const mats = data.materials || {};
+  const cacheInfos = mats.subtitle_cache_info || [];
+  for (const cacheBlock of cacheInfos) {
+    const sentences = cacheBlock.sentence_list || cacheBlock.sentencelist || cacheBlock.sentences || [];
+    for (const sentence of sentences) {
+      // starttime / endtime are in microseconds
+      const startUs = sentence.start_time  ?? sentence.starttime  ?? null;
+      const endUs   = sentence.end_time    ?? sentence.endtime    ?? null;
+      const text    = sentence.text ?? '';
+      if (startUs === null || endUs === null || !text.trim()) continue;
+      subs.push({
+        start: startUs / 1000000,
+        end:   endUs   / 1000000,
+        text:  text.trim()
+      });
     }
   }
-  // Fallback: materials.texts or materials.subtitles (older format)
-  if (segments.length === 0) {
-    const mats = data.materials || {};
-    const texts = mats.texts || mats.subtitles || [];
-    segments = texts.map(t => ({
-      target_timerange: t.timerange || { start: 0, duration: 1000000 },
-      content: t.content || t.text || ''
-    }));
+
+  // ── Strategy 2: tracks[type=text].segments → content JSON
+  if (subs.length === 0) {
+    const tracks = data.tracks || [];
+    const textMats = {};
+    for (const tm of (mats.texts || [])) { if (tm.id) textMats[tm.id] = tm; }
+
+    for (const track of tracks) {
+      if (track.type !== 'text') continue;
+      for (const seg of (track.segments || [])) {
+        const tr = seg.target_timerange || {};
+        const start = (tr.start || 0) / 1000000;
+        const dur   = (tr.duration || 0) / 1000000;
+        const matId = seg.material_id;
+        const mat   = textMats[matId];
+        let text = '';
+        if (mat) {
+          try {
+            const parsed = typeof mat.content === 'string' ? JSON.parse(mat.content) : mat.content;
+            text = (parsed && typeof parsed.text === 'string') ? parsed.text : String(mat.content || '');
+          } catch { text = String(mat.content || mat.text || ''); }
+        } else if (seg.content) {
+          try {
+            const p = typeof seg.content === 'string' ? JSON.parse(seg.content) : seg.content;
+            text = (p && typeof p.text === 'string') ? p.text : String(seg.content);
+          } catch { text = String(seg.content); }
+        }
+        if (text.trim()) subs.push({ start, end: start + dur, text: text.trim() });
+      }
+    }
   }
-  return segments
-    .filter(s => s.target_timerange)
-    .map(s => {
-      const start = (s.target_timerange.start || 0) / 1000000;
-      const dur   = (s.target_timerange.duration || 0) / 1000000;
+
+  // ── Strategy 3: materials.texts[] direct (older format)
+  if (subs.length === 0) {
+    for (const tm of (mats.texts || [])) {
+      const tr = tm.timerange || {};
+      const start = (tr.start || 0) / 1000000;
+      const dur   = (tr.duration || 0) / 1000000;
       let text = '';
       try {
-        const parsed = typeof s.content === 'string' ? JSON.parse(s.content) : s.content;
-        if (parsed && typeof parsed.text === 'string') text = parsed.text;
-        else if (Array.isArray(parsed)) text = parsed.map(p=>p.text||'').join('');
-        else text = String(s.content||'');
-      } catch { text = String(s.content||''); }
-      return { start, end: start+dur, text: text.trim() };
-    })
-    .sort((a,b) => a.start - b.start);
+        const p = typeof tm.content === 'string' ? JSON.parse(tm.content) : tm.content;
+        text = (p && typeof p.text === 'string') ? p.text : String(tm.content || tm.text || '');
+      } catch { text = String(tm.content || tm.text || ''); }
+      if (text.trim()) subs.push({ start, end: start + dur, text: text.trim() });
+    }
+  }
+
+  return subs.sort((a, b) => a.start - b.start);
 }
 
 function applyTools(subs) {
@@ -524,7 +561,7 @@ async function handleFile(file) {
     const text = await file.text();
     const json = JSON.parse(text);
     parsedSubs = parseCapcut(json);
-    if (parsedSubs.length === 0) throw new Error('No subtitle tracks found in this file.');
+    if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles (AI subtitle / speech-to-text).');
     currentFileName = file.name.replace(/\.json$/i,'');
     document.getElementById('tools-panel').classList.remove('hidden');
     renderResults();
