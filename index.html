@@ -6,8 +6,6 @@
 <title>CapcutSRT - Export Subtitles from CapCut</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='20' width='80' height='60' rx='8' fill='none' stroke='%238B5CF6' stroke-width='8'/%3E%3Cpath d='M25 55 H75 M25 68 H55' stroke='%238B5CF6' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- opencc-js loaded async so it never blocks page interactivity -->
-<script async src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js" id="opencc-script"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 body {
@@ -68,8 +66,6 @@ body {
 input:checked + .toggle-slider { background:#8b5cf6; }
 input:checked + .toggle-slider:before { transform:translateX(18px); }
 .replace-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
-.cc-btn { transition: all 0.2s; }
-.cc-btn.active { background: rgba(139,92,246,0.3); color: #c4b5fd; border-color: rgba(139,92,246,0.6); }
 ::-webkit-scrollbar { width:6px; }
 ::-webkit-scrollbar-track { background:rgba(15,23,42,0.5); border-radius:3px; }
 ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
@@ -176,7 +172,7 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
           </div>
           <label class="toggle-switch"><input type="checkbox" id="toggle-longline" checked><span class="toggle-slider"></span></label>
         </div>
-        <div id="longline-input-row" class="flex items-center gap-2 pl-0">
+        <div class="flex items-center gap-2">
           <input type="number" id="longline-sec" value="8" min="1" step="1"
             class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-red-500">
           <span class="text-xs text-slate-400" data-i18n="longLineSuffix"></span>
@@ -192,17 +188,6 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
       </div>
       <!-- Right -->
       <div class="space-y-6">
-        <!-- Chinese Conversion -->
-        <div>
-          <p class="text-sm text-white mb-3" data-i18n="chineseConvert"></p>
-          <div class="flex gap-2 flex-wrap">
-            <button id="cc-off" class="cc-btn active px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-700 bg-slate-800 hover:border-slate-500" onclick="setCCMode('off')" data-i18n="ccOff"></button>
-            <button id="cc-t2s" class="cc-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-700 bg-slate-800 hover:border-violet-500" onclick="setCCMode('t2s')" data-i18n="ccT2S"></button>
-            <button id="cc-s2t" class="cc-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 border border-slate-700 bg-slate-800 hover:border-violet-500" onclick="setCCMode('s2t')" data-i18n="ccS2T"></button>
-          </div>
-          <p id="cc-status" class="text-xs text-slate-500 mt-2"></p>
-        </div>
-        <!-- Replacements -->
         <div>
           <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
           <div id="replace-list" class="space-y-2 mb-3"></div>
@@ -297,13 +282,6 @@ const i18n = {
     longLineSuffix: 'seconds threshold',
     timeOffset: 'Time offset',
     seconds: 'seconds  (positive or negative)',
-    chineseConvert: 'Chinese character conversion',
-    ccOff: 'Off',
-    ccT2S: '繁 → 简',
-    ccS2T: '简 → 繁',
-    ccLoading: 'Loading converter…',
-    ccReady: 'Converter ready',
-    ccNotReady: 'Converter not loaded yet, please retry in a moment.',
     textReplace: 'Text replacement rules',
     addRule: 'Add rule',
     findPlaceholder: 'Find…',
@@ -342,13 +320,6 @@ const i18n = {
     longLineSuffix: '秒閾值',
     timeOffset: '時間偏移',
     seconds: '秒（正數或負數）',
-    chineseConvert: '中文字體轉換',
-    ccOff: '關閉',
-    ccT2S: '繁 → 简',
-    ccS2T: '简 → 繁',
-    ccLoading: '轉換器載入中…',
-    ccReady: '轉換器就緒',
-    ccNotReady: '轉換器尚未載入，請稍後再試。',
     textReplace: '文字取代規則',
     addRule: '新增規則',
     findPlaceholder: '尋找…',
@@ -387,13 +358,6 @@ const i18n = {
     longLineSuffix: '秒阈值',
     timeOffset: '时间偏移',
     seconds: '秒（正数或负数）',
-    chineseConvert: '中文字体转换',
-    ccOff: '关闭',
-    ccT2S: '繁 → 简',
-    ccS2T: '简 → 繁',
-    ccLoading: '转换器加载中…',
-    ccReady: '转换器就绪',
-    ccNotReady: '转换器尚未加载，请稍后再试。',
     textReplace: '文字替换规则',
     addRule: '添加规则',
     findPlaceholder: '查找…',
@@ -459,63 +423,6 @@ function renderOsGuide() {
   else if (nav.startsWith('zh')) applyLang('zh-CN');
   else applyLang('en');
 })();
-
-// ==========================================
-// OpenCC Chinese Conversion
-// Locale codes (opencc-js): tw=繁體, cn=簡體
-// t2s: from:'tw', to:'cn'
-// s2t: from:'cn', to:'tw'
-// ==========================================
-let ccMode = 'off';
-let ccConverter = null;
-let ccConverterMode = null;
-
-function isOpenCCReady() {
-  return typeof window.OpenCC !== 'undefined' && typeof window.OpenCC.Converter === 'function';
-}
-
-function setCCMode(mode) {
-  ccMode = mode;
-  ['off','t2s','s2t'].forEach(m => {
-    const btn = document.getElementById('cc-'+m);
-    if(btn) btn.classList.toggle('active', m === mode);
-  });
-  const statusEl = document.getElementById('cc-status');
-  if (mode === 'off') {
-    statusEl.textContent = '';
-    if(parsedSubs.length) renderResults();
-    return;
-  }
-  if (!isOpenCCReady()) {
-    statusEl.textContent = t('ccNotReady');
-    // retry once after 1.5s in case CDN just finished loading
-    setTimeout(() => { if(ccMode === mode) setCCMode(mode); }, 1500);
-    return;
-  }
-  if (ccConverterMode === mode && ccConverter) {
-    statusEl.textContent = t('ccReady');
-    if(parsedSubs.length) renderResults();
-    return;
-  }
-  statusEl.textContent = t('ccLoading');
-  try {
-    // FIXED locale codes: 'tw' = Traditional, 'cn' = Simplified
-    const from = mode === 't2s' ? 'tw' : 'cn';
-    const to   = mode === 't2s' ? 'cn' : 'tw';
-    ccConverter = OpenCC.Converter({ from, to });
-    ccConverterMode = mode;
-    statusEl.textContent = t('ccReady');
-    if(parsedSubs.length) renderResults();
-  } catch(e) {
-    statusEl.textContent = 'Error: ' + e.message;
-  }
-}
-window.setCCMode = setCCMode;
-
-function applyCC(text) {
-  if (ccMode === 'off' || !ccConverter) return text;
-  try { return ccConverter(text); } catch { return text; }
-}
 
 // ==========================================
 // Text Replacement UI
@@ -634,7 +541,6 @@ function applyTools(subs) {
   result = result.map(s => {
     let text = s.text;
     for (const r of replaceRules) { if(r.find) text = text.split(r.find).join(r.rep); }
-    text = applyCC(text);
     return {...s, text};
   });
   if (doParticles) result = result.map(s => ({...s, text: s.text.replace(MODAL_PARTICLES,'').trim()}));
@@ -699,9 +605,9 @@ async function handleFile(file) {
 }
 
 function renderResults() {
-  const processed   = applyTools(parsedSubs);
-  const doLongLine  = document.getElementById('toggle-longline').checked;
-  const longSec     = parseFloat(document.getElementById('longline-sec').value) || 8;
+  const processed  = applyTools(parsedSubs);
+  const doLongLine = document.getElementById('toggle-longline').checked;
+  const longSec    = parseFloat(document.getElementById('longline-sec').value) || 8;
 
   document.getElementById('subtitle-count').textContent = processed.length;
   document.getElementById('file-name-display').textContent = currentFileName;
