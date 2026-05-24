@@ -111,7 +111,6 @@ function loadToggleState() {
     sol.checked = LS.get('showOnlyLong', false);
     sol.addEventListener('change', () => { LS.set('showOnlyLong', sol.checked); if (parsedSubs.length) renderResults(); });
   }
-  // zh convert select
   const zhSel = document.getElementById('zh-convert-select');
   if (zhSel) {
     zhSel.value = LS.get('zhConvert', 'none');
@@ -180,7 +179,7 @@ async function handleFile(file) {
     const fnInput = document.getElementById('filename-input');
     if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
     document.getElementById('tools-panel').classList.remove('hidden');
-    renderResults();
+    await renderResults();   // ← must await so results-panel shows correctly
   } catch(err) {
     showError(t('errorBadFile') + (err.message ? ' ('+err.message+')' : ''));
   }
@@ -199,16 +198,14 @@ function autoResizeFilenameInput(el) {
 }
 
 // ==========================================
-// renderResults  (async — awaits conversion)
+// renderResults  (async — awaits zh conversion only)
 // ==========================================
 async function renderResults() {
   const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
 
-  // Build tagged copy for processing
   let tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
   tagged = applyToolsTagged(tagged);
 
-  // Apply zh conversion (async, lazy-loads opencc only if needed)
   if (zhMode !== 'none') {
     tagged = await convertSubtitles(tagged, zhMode);
   }
@@ -255,6 +252,9 @@ async function renderResults() {
     let curStart = s.start;
     let curEnd   = s.end;
 
+    // IMPORTANT: declare durInput with let BEFORE updateDurBadge so it is in scope
+    let durInput = null;
+
     function updateDurBadge() {
       const d = curEnd - curStart;
       durBadge.textContent = d.toFixed(2) + 's';
@@ -262,10 +262,9 @@ async function renderResults() {
       durBadge.className = 'duration-badge' + (nowLong ? ' long' : '');
       row.classList.toggle('long-sub-row', nowLong);
       row.classList.toggle('hover:bg-slate-800/30', !nowLong);
-      // keep dur input in sync
       if (durInput) durInput.value = d.toFixed(2);
     }
-    updateDurBadge();
+    updateDurBadge();  // safe: durInput is null here but guarded with if(durInput)
 
     function makeTimeInput(getSec, onCommit) {
       const inp = document.createElement('input');
@@ -294,8 +293,8 @@ async function renderResults() {
       v  => { curEnd = v; parsedSubs[srcIdx].end = v; }
     );
 
-    // Editable duration
-    const durInput = document.createElement('input');
+    // Editable duration — assigned to the let declared above
+    durInput = document.createElement('input');
     durInput.type = 'number'; durInput.className = 'dur-input';
     durInput.min = '0'; durInput.step = '0.1';
     durInput.value = (curEnd - curStart).toFixed(2);
@@ -366,7 +365,7 @@ document.getElementById('time-offset').addEventListener('input', () => { if(pars
 const fnInput = document.getElementById('filename-input');
 if(fnInput) fnInput.addEventListener('input', function(){ currentFileName=this.value.trim()||'subtitles'; autoResizeFilenameInput(this); });
 
-// ---- Export (async: applies conversion before export) ----
+// ---- Export ----
 async function getExportSubs() {
   const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
   let tagged = parsedSubs.map((s,i) => ({...s,_srcIdx:i}));
