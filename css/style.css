@@ -80,21 +80,17 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
   border: none;
   border-bottom: 1px dashed transparent;
   outline: none;
-  color: #c4b5fd;        /* violet-300 */
+  color: #c4b5fd;
   font-weight: 500;
-  font-size: 0.875rem;   /* text-sm */
+  font-size: 0.875rem;
   font-family: inherit;
   padding: 0 2px;
   min-width: 4ch;
   max-width: 260px;
   transition: border-color 0.2s;
 }
-.filename-input:hover {
-  border-bottom-color: rgba(139,92,246,0.4);
-}
-.filename-input:focus {
-  border-bottom-color: #8b5cf6;
-}
+.filename-input:hover  { border-bottom-color: rgba(139,92,246,0.4); }
+.filename-input:focus  { border-bottom-color: #8b5cf6; }
 
 /* ---- Inline subtitle textarea ---- */
 .sub-text-input {
@@ -102,7 +98,7 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
   border: none;
   border-radius: 4px;
   outline: none;
-  color: #f1f5f9;        /* slate-100 */
+  color: #f1f5f9;
   font-size: 0.875rem;
   font-family: inherit;
   line-height: 1.5;
@@ -113,10 +109,84 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
   margin: -2px -4px;
   transition: background 0.15s;
 }
-.sub-text-input:hover {
-  background: rgba(255,255,255,0.04);
+.sub-text-input:hover  { background: rgba(255,255,255,0.04); }
+.sub-text-input:focus  { background: rgba(139,92,246,0.10); box-shadow: 0 0 0 1px rgba(139,92,246,0.35); }
+
+/* ---- Editable time input ---- */
+.time-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed rgba(100,116,139,0.4);
+  outline: none;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 1px 2px;
+  width: 10ch;
+  transition: color 0.15s, border-color 0.15s;
 }
-.sub-text-input:focus {
-  background: rgba(139,92,246,0.10);
-  box-shadow: 0 0 0 1px rgba(139,92,246,0.35);
+.time-input:hover  { color: #94a3b8; border-bottom-color: rgba(139,92,246,0.4); }
+.time-input:focus  { color: #c4b5fd; border-bottom-color: #8b5cf6; }
+
+/* ---- Duration badge ---- */
+.duration-badge {
+  font-size: 0.65rem;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(71,85,105,0.4);
+  color: #64748b;
+  border: 1px solid rgba(71,85,105,0.3);
+  white-space: nowrap;
 }
+.duration-badge.long {
+  background: rgba(239,68,68,0.15);
+  color: #fca5a5;
+  border-color: rgba(239,68,68,0.35);
+}
+
+/* ---- Long subtitle row highlight ---- */
+.long-sub-row {
+  background: rgba(239,68,68,0.05);
+  border-left: 2px solid rgba(239,68,68,0.4);
+}
+.long-sub-row:hover { background: rgba(239,68,68,0.08); }
+
+/* ---- Particle chip picker ---- */
+.particle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.particle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(71,85,105,0.5);
+  background: rgba(30,41,59,0.6);
+  color: #64748b;
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s;
+}
+.particle-chip:hover  { border-color: rgba(139,92,246,0.4); color: #94a3b8; }
+.particle-chip.active {
+  background: rgba(139,92,246,0.2);
+  border-color: rgba(139,92,246,0.5);
+  color: #c4b5fd;
+}
+.chip-del {
+  background: none;
+  border: none;
+  color: rgba(100,116,139,0.6);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0 0 0 2px;
+  transition: color 0.15s;
+}
+.chip-del:hover { color: #f87171; }

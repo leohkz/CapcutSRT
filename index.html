@@ -86,12 +86,30 @@
       <span data-i18n="advancedTools"></span>
     </h2>
     <div class="grid md:grid-cols-2 gap-6">
-      <!-- Left -->
+
+      <!-- Left col -->
       <div class="space-y-5">
-        <div class="flex items-center justify-between">
-          <div><p class="text-sm text-white" data-i18n="deleteParticles"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="deleteParticlesSub"></p></div>
-          <label class="toggle-switch"><input type="checkbox" id="toggle-particles" checked><span class="toggle-slider"></span></label>
+
+        <!-- Filler word toggle + picker -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm text-white" data-i18n="deleteParticles"></p>
+              <p class="text-xs text-slate-500 mt-0.5" data-i18n="deleteParticlesSub"></p>
+            </div>
+            <label class="toggle-switch"><input type="checkbox" id="toggle-particles" checked><span class="toggle-slider"></span></label>
+          </div>
+          <!-- chip list -->
+          <div id="particle-picker" class="particle-chips"></div>
+          <!-- add custom word -->
+          <div class="flex gap-2 mt-2">
+            <input id="particle-add-input" type="text" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white focus:outline-none focus:border-violet-500" autocomplete="off">
+            <button id="particle-add-btn" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </button>
+          </div>
         </div>
+
         <div class="flex items-center justify-between">
           <div><p class="text-sm text-white" data-i18n="removeEmpty"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="removeEmptySub"></p></div>
           <label class="toggle-switch"><input type="checkbox" id="toggle-empty" checked><span class="toggle-slider"></span></label>
@@ -108,8 +126,25 @@
             <span class="text-xs text-slate-400" data-i18n="seconds"></span>
           </div>
         </div>
+
+        <!-- Long subtitle detection -->
+        <div>
+          <p class="text-sm text-white mb-1" data-i18n="longSubDetect"></p>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-slate-400" data-i18n="longSubDetectSub"></span>
+            <input type="number" id="long-sub-threshold" value="8" min="1" step="0.5"
+              class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-violet-500">
+            <span class="text-xs text-slate-400" data-i18n="longSubSeconds"></span>
+          </div>
+          <div class="flex items-center gap-2 mt-2">
+            <label class="toggle-switch"><input type="checkbox" id="toggle-show-only-long"><span class="toggle-slider"></span></label>
+            <span class="text-xs text-slate-400" data-i18n="showOnlyLong"></span>
+          </div>
+        </div>
+
       </div>
-      <!-- Right: Replacements -->
+
+      <!-- Right col: Text replacements -->
       <div>
         <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
         <div id="replace-list" class="space-y-2 mb-3"></div>
@@ -118,6 +153,7 @@
           <span data-i18n="addRule"></span>
         </button>
       </div>
+
     </div>
   </div>
 
@@ -125,15 +161,7 @@
   <div id="results-panel" class="hidden flex-col gap-4 fade-in-up">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="text-sm text-slate-400 flex items-center gap-1 flex-wrap">
-        <!-- Editable filename -->
-        <input
-          id="filename-input"
-          type="text"
-          class="filename-input"
-          placeholder="subtitles"
-          autocomplete="off"
-          spellcheck="false"
-        >
+        <input id="filename-input" type="text" class="filename-input" placeholder="subtitles" autocomplete="off" spellcheck="false">
         <span class="text-slate-600 select-none">&nbsp;·&nbsp;</span>
         <span id="subtitle-count" class="text-white font-bold">0</span>
         <span data-i18n="subtitleLines"></span>
@@ -184,7 +212,6 @@
   <p>CapcutSRT &bull; Client-side Only &bull; Zero Upload &bull; <a href="https://github.com/leohkz/CapcutSRT" class="hover:text-slate-400 transition-colors">GitHub</a></p>
 </footer>
 
-<!-- JS modules: load order matters -->
 <script src="js/i18n.js"></script>
 <script src="js/parsers.js"></script>
 <script src="js/tools.js"></script>

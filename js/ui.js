@@ -2,6 +2,12 @@
 // UI — drop zone, file handling, render, export
 // ==========================================
 
+// ---- LocalStorage helpers ----
+const LS = {
+  get: (k, fallback) => { try { const v = localStorage.getItem(k); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; } },
+  set: (k, v)        => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
 // ---- OS Guide ----
 const osPaths = {
   windows: 'C:\\Users\\user\\AppData\\Local\\CapCut\\User Data\\Projects\\com.lveditor.draft\\',
@@ -20,15 +26,136 @@ function detectOS() {
   if (/Mac/.test(ua))               return 'mac';
   return 'other';
 }
-
 function renderOsGuide() {
   const os = detectOS();
   document.getElementById('os-icon').textContent = osIcons[os];
   document.getElementById('os-path').textContent = osPaths[os];
 }
 
+// ---- Particle Picker UI ----
+function buildParticlePicker() {
+  const container = document.getElementById('particle-picker');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const allWords = getAllParticles();
+  for (const word of allWords) {
+    container.appendChild(makeParticleChip(word));
+  }
+}
+
+function makeParticleChip(word) {
+  const isCustom = !DEFAULT_PARTICLES.includes(word);
+  const active   = particleState[word] !== false;
+
+  const chip = document.createElement('label');
+  chip.className = 'particle-chip' + (active ? ' active' : '');
+  chip.title = isCustom ? 'click to toggle / right-click to delete' : 'click to toggle';
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = active;
+  cb.style.display = 'none';
+  cb.addEventListener('change', () => {
+    particleState[word] = cb.checked;
+    chip.classList.toggle('active', cb.checked);
+    saveParticleState();
+    if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
+  });
+
+  const span = document.createElement('span');
+  span.textContent = word;
+
+  chip.appendChild(cb);
+  chip.appendChild(span);
+
+  if (isCustom) {
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.className = 'chip-del';
+    del.addEventListener('click', e => {
+      e.preventDefault();
+      customParticles = customParticles.filter(w => w !== word);
+      delete particleState[word];
+      saveParticleState();
+      chip.remove();
+      if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
+    });
+    chip.appendChild(del);
+  }
+
+  return chip;
+}
+
+function initParticlePicker() {
+  buildParticlePicker();
+
+  const addBtn   = document.getElementById('particle-add-btn');
+  const addInput = document.getElementById('particle-add-input');
+  if (!addBtn || !addInput) return;
+
+  addInput.placeholder = t('particleAddPlaceholder');
+
+  const doAdd = () => {
+    const word = addInput.value.trim();
+    if (!word || getAllParticles().includes(word)) { addInput.value = ''; return; }
+    customParticles.push(word);
+    particleState[word] = true;
+    saveParticleState();
+    const container = document.getElementById('particle-picker');
+    container.appendChild(makeParticleChip(word));
+    addInput.value = '';
+    if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
+  };
+
+  addBtn.addEventListener('click', doAdd);
+  addInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
+}
+
+// ---- Persist tool toggles ----
+function loadToggleState() {
+  const ids = ['toggle-particles','toggle-empty','toggle-merge'];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const saved = LS.get('toggle:' + id, null);
+    if (saved !== null) el.checked = saved;
+    el.addEventListener('change', () => LS.set('toggle:' + id, el.checked));
+  }
+  // time offset
+  const off = document.getElementById('time-offset');
+  if (off) {
+    const sv = LS.get('timeOffset', null);
+    if (sv !== null) off.value = sv;
+    off.addEventListener('input', () => LS.set('timeOffset', off.value));
+  }
+  // long sub threshold
+  const lst = document.getElementById('long-sub-threshold');
+  if (lst) {
+    const sv = LS.get('longSubThreshold', 8);
+    lst.value = sv;
+    lst.addEventListener('input', () => {
+      LS.set('longSubThreshold', lst.value);
+      if (parsedSubs.length) renderResults();
+    });
+  }
+  // show only long
+  const sol = document.getElementById('toggle-show-only-long');
+  if (sol) {
+    sol.checked = LS.get('showOnlyLong', false);
+    sol.addEventListener('change', () => {
+      LS.set('showOnlyLong', sol.checked);
+      if (parsedSubs.length) renderResults();
+    });
+  }
+}
+
 // ---- Replace Rules UI ----
 let replaceRules = [];
+
+function saveReplaceRules() {
+  LS.set('replaceRules', replaceRules.map(r => ({ find: r.find, rep: r.rep })));
+}
 
 function addReplaceRow(find = '', rep = '') {
   const id = Date.now() + '_' + Math.random();
@@ -47,11 +174,11 @@ function addReplaceRow(find = '', rep = '') {
 
   row.querySelector('.replace-find').addEventListener('input', e => {
     const r = replaceRules.find(x => x.id === id);
-    if (r) { r.find = e.target.value; if (parsedSubs.length) renderResults(); }
+    if (r) { r.find = e.target.value; saveReplaceRules(); if (parsedSubs.length) renderResults(); }
   });
   row.querySelector('.replace-with').addEventListener('input', e => {
     const r = replaceRules.find(x => x.id === id);
-    if (r) { r.rep = e.target.value; if (parsedSubs.length) renderResults(); }
+    if (r) { r.rep = e.target.value; saveReplaceRules(); if (parsedSubs.length) renderResults(); }
   });
 
   document.getElementById('replace-list').appendChild(row);
@@ -60,10 +187,17 @@ function addReplaceRow(find = '', rep = '') {
 window.removeReplaceRow = function (id) {
   replaceRules = replaceRules.filter(r => r.id !== id);
   document.querySelector(`.replace-row[data-id="${id}"]`)?.remove();
+  saveReplaceRules();
   if (parsedSubs.length) renderResults();
 };
 
-document.getElementById('add-replace-btn').addEventListener('click', () => addReplaceRow());
+document.getElementById('add-replace-btn').addEventListener('click', () => { addReplaceRow(); saveReplaceRules(); });
+
+// restore saved replace rules
+(function () {
+  const saved = LS.get('replaceRules', []);
+  for (const r of saved) addReplaceRow(r.find, r.rep);
+})();
 
 // ---- File Handling ----
 let parsedSubs = [];
@@ -103,12 +237,8 @@ async function handleFile(file) {
       if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles.');
       currentFileName = file.name.replace(/\.json$/i, '');
     }
-    // sync filename input
     const fnInput = document.getElementById('filename-input');
-    if (fnInput) {
-      fnInput.value = currentFileName;
-      autoResizeFilenameInput(fnInput);
-    }
+    if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
     document.getElementById('tools-panel').classList.remove('hidden');
     renderResults();
   } catch (err) {
@@ -116,9 +246,8 @@ async function handleFile(file) {
   }
 }
 
-// ---- Filename input auto-width ----
+// ---- Filename input ----
 function autoResizeFilenameInput(el) {
-  // use a hidden span to measure text width
   let ruler = document.getElementById('filename-ruler');
   if (!ruler) {
     ruler = document.createElement('span');
@@ -132,56 +261,100 @@ function autoResizeFilenameInput(el) {
 
 // ---- Render ----
 function renderResults() {
-  const processed = applyTools(parsedSubs);
+  const processed  = applyTools(parsedSubs);
+  const showOnlyLong = document.getElementById('toggle-show-only-long')?.checked || false;
+  const display    = showOnlyLong ? processed.filter(s => isLongSub(s)) : processed;
+
   document.getElementById('subtitle-count').textContent = processed.length;
 
-  // render each subtitle row with an editable textarea
   const list = document.getElementById('preview-list');
   list.innerHTML = '';
 
-  processed.slice(0, 200).forEach((s, i) => {
-    const row = document.createElement('div');
-    row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors';
+  display.slice(0, 200).forEach((s, i) => {
+    const long = isLongSub(s);
+    const row  = document.createElement('div');
+    row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start transition-colors'
+      + (long ? ' long-sub-row' : ' hover:bg-slate-800/30');
 
+    // Line number
+    const numSpan = document.createElement('span');
+    numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
+    numSpan.textContent = i + 1;
+
+    // Right column
+    const right = document.createElement('div');
+    right.className = 'flex-1 min-w-0 flex flex-col gap-1';
+
+    // Editable subtitle text
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input';
     ta.rows = 1;
     ta.spellcheck = false;
     ta.value = s.text;
-    ta.dataset.origIdx = i;
-
-    // auto-height on render
-    ta.style.height = 'auto';
-
-    // write-back to parsedSubs when user edits
     ta.addEventListener('input', function () {
       this.style.height = 'auto';
       this.style.height = this.scrollHeight + 'px';
-      // update the processed entry and the source parsedSubs entry by matching index
-      processed[i].text = this.value;
-      // find the closest match in parsedSubs by start time
       const src = parsedSubs.find(x => Math.abs(x.start - s.start) < 0.001);
       if (src) src.text = this.value;
     });
 
-    const numSpan = document.createElement('span');
-    numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
-    numSpan.textContent = i + 1;
+    // Timestamp row: editable start + end
+    const tsRow = document.createElement('div');
+    tsRow.className = 'flex items-center gap-1 flex-wrap';
 
-    const right = document.createElement('div');
-    right.className = 'flex-1 min-w-0';
+    const makeTimeInput = (sec, onCommit) => {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'time-input font-mono';
+      inp.value = toSRTTime(sec);
+      inp.spellcheck = false;
+      inp.addEventListener('blur', function () {
+        const parsed = srtTimeToSecFromStr(this.value);
+        if (parsed !== null && parsed >= 0) {
+          onCommit(parsed);
+          this.value = toSRTTime(parsed);
+          // re-check long flag
+          row.classList.toggle('long-sub-row', isLongSub(s));
+          row.classList.toggle('hover:bg-slate-800/30', !isLongSub(s));
+        } else {
+          this.value = toSRTTime(sec); // revert invalid
+        }
+      });
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+      return inp;
+    };
 
-    const timeLine = document.createElement('p');
-    timeLine.className = 'text-xs text-slate-500 mt-1 font-mono';
-    timeLine.textContent = toSRTTime(s.start) + ' → ' + toSRTTime(s.end);
+    const startInp = makeTimeInput(s.start, v => {
+      s.start = v;
+      const src = parsedSubs.find(x => Math.abs(x.start - (s.start === v ? s.start : v)) < 0.5);
+      if (src) src.start = v;
+    });
+    const arrow = document.createElement('span');
+    arrow.className = 'text-xs text-slate-600 select-none';
+    arrow.textContent = '→';
+    const endInp = makeTimeInput(s.end, v => {
+      s.end = v;
+      const src = parsedSubs.find(x => Math.abs(x.end - s.end) < 0.5 && Math.abs(x.start - s.start) < 0.5);
+      if (src) src.end = v;
+    });
+
+    // Duration badge
+    const dur = s.end - s.start;
+    const durBadge = document.createElement('span');
+    durBadge.className = 'duration-badge' + (long ? ' long' : '');
+    durBadge.textContent = dur.toFixed(1) + 's';
+
+    tsRow.appendChild(startInp);
+    tsRow.appendChild(arrow);
+    tsRow.appendChild(endInp);
+    tsRow.appendChild(durBadge);
 
     right.appendChild(ta);
-    right.appendChild(timeLine);
+    right.appendChild(tsRow);
     row.appendChild(numSpan);
     row.appendChild(right);
     list.appendChild(row);
 
-    // set height after appended to DOM
     requestAnimationFrame(() => {
       ta.style.height = 'auto';
       ta.style.height = ta.scrollHeight + 'px';
@@ -193,12 +366,12 @@ function renderResults() {
   panel.classList.add('flex');
 }
 
-['toggle-particles', 'toggle-empty', 'toggle-merge'].forEach(id =>
+['toggle-particles','toggle-empty','toggle-merge'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => { if (parsedSubs.length) renderResults(); })
 );
 document.getElementById('time-offset').addEventListener('input', () => { if (parsedSubs.length) renderResults(); });
 
-// ---- Filename input wiring (runs after DOM ready) ----
+// Filename input wiring
 const fnInput = document.getElementById('filename-input');
 if (fnInput) {
   fnInput.addEventListener('input', function () {
@@ -256,12 +429,13 @@ function showError(msg) {
   document.getElementById('error-text').textContent = msg;
   document.getElementById('error-msg').classList.remove('hidden');
 }
-
 function escHtml(str) {
   const d = document.createElement('div');
   d.textContent = str;
   return d.innerHTML;
 }
 
-// Init OS guide on load
+// ---- Init ----
 renderOsGuide();
+initParticlePicker();
+loadToggleState();
