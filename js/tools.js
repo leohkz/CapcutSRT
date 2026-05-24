@@ -5,9 +5,8 @@
 // Default particle list
 const DEFAULT_PARTICLES = ['嗯','啊','哦','嗳','那','就','然后','然後','唔','系','即係','即是','問','啦','誒','話','悔','喔','咼'];
 
-// State: which words are active + custom words
-let particleState = {}; // { word: true/false }
-let customParticles = []; // extra words added by user
+let particleState  = {};
+let customParticles = [];
 
 function loadParticleState() {
   try {
@@ -16,7 +15,6 @@ function loadParticleState() {
     const savedCustom = localStorage.getItem('customParticles');
     if (savedCustom) customParticles = JSON.parse(savedCustom);
   } catch (e) {}
-  // ensure defaults exist
   for (const w of DEFAULT_PARTICLES) {
     if (particleState[w] === undefined) particleState[w] = true;
   }
@@ -40,6 +38,70 @@ function buildParticleRegex() {
   return new RegExp(escaped.join('|'), 'g');
 }
 
+// ==========================================
+// OpenCC lazy loader — loads ONLY when needed
+// ==========================================
+let _openccConverter = null;   // cached converter instance
+let _openccLoading   = false;
+let _openccCallbacks = [];
+
+function getOpenCC(mode) {
+  // mode: 's2t' | 't2s'
+  return new Promise((resolve, reject) => {
+    // If already have a converter for this mode, return it
+    if (_openccConverter && _openccConverter._mode === mode) {
+      return resolve(_openccConverter);
+    }
+    // Queue callback
+    _openccCallbacks.push({ mode, resolve, reject });
+
+    if (_openccLoading) return; // already loading, just queue
+    _openccLoading = true;
+
+    // Dynamically load opencc-js only now
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/bundle.js';
+    script.onload = () => {
+      // Drain all queued requests
+      const pending = _openccCallbacks.splice(0);
+      const converters = {};
+      for (const { mode: m, resolve: res } of pending) {
+        if (!converters[m]) {
+          try {
+            converters[m] = m === 's2t'
+              ? OpenCC.Converter({ from: 'cn', to: 'twp' })
+              : OpenCC.Converter({ from: 'tw', to: 'cn' });
+            converters[m]._mode = m;
+          } catch (e) {
+            res(null); continue;
+          }
+        }
+        res(converters[m]);
+      }
+      _openccLoading = false;
+    };
+    script.onerror = () => {
+      _openccCallbacks.splice(0).forEach(({ reject: rej }) => rej(new Error('Failed to load opencc-js')));
+      _openccLoading = false;
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// Convert an array of subs; returns a new array with converted text
+async function convertSubtitles(subs, mode) {
+  if (!mode || mode === 'none') return subs;
+  try {
+    const converter = await getOpenCC(mode);
+    if (!converter) return subs;
+    return subs.map(s => ({ ...s, text: converter(s.text) }));
+  } catch (e) {
+    console.warn('OpenCC conversion failed:', e);
+    return subs;
+  }
+}
+
+// Synchronous applyTools for display (no conversion — conversion is applied separately before export/render)
 function applyTools(subs) {
   const offset      = parseFloat(document.getElementById('time-offset').value) || 0;
   const doParticles = document.getElementById('toggle-particles').checked;
@@ -52,7 +114,6 @@ function applyTools(subs) {
     end:   Math.max(0, s.end   + offset),
   }));
 
-  // text replacements
   result = result.map(s => {
     let text = s.text;
     for (const r of replaceRules) {
@@ -77,7 +138,6 @@ function applyTools(subs) {
     }
     result = merged;
   }
-
   return result;
 }
 
@@ -95,7 +155,6 @@ function toSRTTime(sec) {
 }
 
 function srtTimeToSecFromStr(str) {
-  // accepts HH:MM:SS,mmm or HH:MM:SS.mmm
   const m = str.match(/(\d+):(\d+):(\d+)[,\.](\d+)/);
   if (!m) return null;
   return +m[1]*3600 + +m[2]*60 + +m[3] + +m[4].padEnd(3,'0')/1000;
@@ -104,14 +163,11 @@ function srtTimeToSecFromStr(str) {
 function buildSRT(subs) {
   return subs.map((s, i) => `${i + 1}\n${toSRTTime(s.start)} --> ${toSRTTime(s.end)}\n${s.text}`).join('\n\n');
 }
-
 function buildTXT(subs) {
   return subs.map(s => `[${toSRTTime(s.start)} --> ${toSRTTime(s.end)}]\n${s.text}`).join('\n\n');
 }
-
 function buildPlain(subs) {
   return subs.map(s => s.text).join('\n');
 }
 
-// init
 loadParticleState();

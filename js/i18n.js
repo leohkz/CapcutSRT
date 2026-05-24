@@ -1,15 +1,12 @@
-// ==========================================
-// i18n — translation strings
-// ==========================================
 const i18n = {
   en: {
     tagline: 'CapCut Subtitle Exporter',
-    desc: 'Import <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> (CapCut) or any <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> file. Export as SRT, TXT, or plain text. 100% local — nothing is uploaded.',
+    desc: 'Import <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> (CapCut) or any <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> / <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.txt</code> file. Export as SRT, TXT, or plain text. 100% local.',
     osGuideTitle: '📂 Where is my CapCut project file?',
     osGuideSub: 'Navigate to the folder below, open your project folder, and drag the draft_content.json file here.',
     osGuideNote: 'Replace "user" with your actual username. Each project has its own subfolder inside com.lveditor.draft.',
     dropTitle: 'Click or drag & drop your file',
-    dropSub: 'CapCut draft_content.json  ·  or any .srt file',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
     dropHint: 'No upload · Fully private',
     advancedTools: 'Advanced Processing Tools',
     deleteParticles: 'Remove filler words',
@@ -29,6 +26,10 @@ const i18n = {
     longSubDetectSub: 'Highlight subtitles longer than',
     longSubSeconds: 'seconds',
     showOnlyLong: 'Show only long subtitles',
+    zhConvert: 'Chinese script conversion',
+    zhConvertNone: 'Off',
+    zhConvertS2T: 'Simplified → Traditional',
+    zhConvertT2S: 'Traditional → Simplified',
     subtitleLines: ' subtitle lines',
     exportSRT: 'Export .srt',
     exportTXT: 'Export .txt (timestamps)',
@@ -43,12 +44,12 @@ const i18n = {
   },
   'zh-TW': {
     tagline: 'CapCut 字幕匯出工具',
-    desc: '匯入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 檔。匯出 SRT、TXT 或純文字。100% 本機解析。',
+    desc: '匯入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> / <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.txt</code> 檔。100% 本機解析。',
     osGuideTitle: '📂 如何找到 CapCut 的存檔？',
     osGuideSub: '前往以下路徑，進入你的專案資料夾，把 draft_content.json 拖曳到這裡。',
-    osGuideNote: '請將 "user" 替換為你的實際用戶名稱。每個專案在 com.lveditor.draft 內都有獨立資料夾。',
+    osGuideNote: '請將 "user" 替換為你的實際用戶名稱。',
     dropTitle: '點擊或拖曳檔案',
-    dropSub: 'CapCut draft_content.json  ·  或任何 .srt 檔案',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
     dropHint: '不上傳 · 完全私密',
     advancedTools: '進階處理工具',
     deleteParticles: '刪除語氣詞／填充詞',
@@ -68,6 +69,10 @@ const i18n = {
     longSubDetectSub: '標記超過以下時長的字幕',
     longSubSeconds: '秒',
     showOnlyLong: '僅顯示長字幕',
+    zhConvert: '中文簡繁轉換',
+    zhConvertNone: '關閉',
+    zhConvertS2T: '簡體 → 繁體',
+    zhConvertT2S: '繁體 → 簡體',
     subtitleLines: ' 條字幕',
     exportSRT: '匯出 .srt',
     exportTXT: '匯出 .txt（含時間戳）',
@@ -82,12 +87,12 @@ const i18n = {
   },
   'zh-CN': {
     tagline: 'CapCut 字幕导出工具',
-    desc: '导入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 文件。导出 SRT、TXT 或纯文本。100% 本地解析。',
+    desc: '导入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> / <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.txt</code> 文件。100% 本地解析。',
     osGuideTitle: '📂 如何找到 CapCut 的存档？',
     osGuideSub: '前往以下路径，进入你的项目文件夹，把 draft_content.json 拖拽到这里。',
-    osGuideNote: '请将 "user" 替换为你的实际用户名。每个项目在 com.lveditor.draft 内都有独立文件夹。',
+    osGuideNote: '请将 "user" 替换为你的实际用户名。',
     dropTitle: '点击或拖拽文件',
-    dropSub: 'CapCut draft_content.json  ·  或任何 .srt 文件',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
     dropHint: '不上传 · 完全私密',
     advancedTools: '高级处理工具',
     deleteParticles: '删除语气词／填充词',
@@ -107,6 +112,10 @@ const i18n = {
     longSubDetectSub: '标记超过以下时长的字幕',
     longSubSeconds: '秒',
     showOnlyLong: '仅显示长字幕',
+    zhConvert: '中文简繁转换',
+    zhConvertNone: '关闭',
+    zhConvertS2T: '简体 → 繁体',
+    zhConvertT2S: '繁体 → 简体',
     subtitleLines: ' 条字幕',
     exportSRT: '导出 .srt',
     exportTXT: '导出 .txt（含时间戳）',
@@ -122,30 +131,27 @@ const i18n = {
 };
 
 let currentLang = 'en';
-
-function t(k) {
-  return (i18n[currentLang] || i18n.en)[k] || k;
-}
+function t(k) { return (i18n[currentLang] || i18n.en)[k] || k; }
 
 function applyLang(lang) {
   currentLang = lang;
   document.documentElement.lang = lang;
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    el.innerHTML = t(el.dataset.i18n);
-  });
-  document.querySelectorAll('.lang-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.lang === lang)
-  );
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.dataset.i18n); });
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
   document.querySelectorAll('.replace-find').forEach(i => i.placeholder = t('findPlaceholder'));
   document.querySelectorAll('.replace-with').forEach(i => i.placeholder = t('replacePlaceholder'));
+  // update zh-convert select options text
+  const sel = document.getElementById('zh-convert-select');
+  if (sel) {
+    sel.options[0].text = t('zhConvertNone');
+    sel.options[1].text = t('zhConvertS2T');
+    sel.options[2].text = t('zhConvertT2S');
+  }
   if (typeof renderOsGuide === 'function') renderOsGuide();
 }
 
-document.querySelectorAll('.lang-btn').forEach(b =>
-  b.addEventListener('click', () => applyLang(b.dataset.lang))
-);
+document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => applyLang(b.dataset.lang)));
 
-// Auto-detect on load
 (function () {
   const nav = navigator.language || 'en';
   if (nav.startsWith('zh-TW') || nav.startsWith('zh-HK') || nav === 'zh-Hant') applyLang('zh-TW');

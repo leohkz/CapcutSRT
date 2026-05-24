@@ -1,5 +1,5 @@
 // ==========================================
-// Parsers — CapCut JSON + SRT
+// Parsers — CapCut JSON + SRT + TXT
 // ==========================================
 
 function parseCapcut(data) {
@@ -76,4 +76,37 @@ function srtTimeToSec(s) {
   const m = s.match(/(\d+):(\d+):(\d+)[,.](\d+)/);
   if (!m) return 0;
   return +m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, '0') / 1000;
+}
+
+// Parse .txt: supports two formats
+//   Format A (timestamp blocks):
+//     [00:00:01,000 --> 00:00:03,500]
+//     subtitle text
+//
+//   Format B (plain lines, one subtitle per non-empty line, no timestamps):
+//     line of text
+function parseTXT(raw) {
+  const normalised = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
+  // Try Format A first
+  const tsPattern = /\[?(\d+:\d+:\d+[,.]\d+)\s*-->\s*(\d+:\d+:\d+[,.]\d+)\]?/;
+  if (tsPattern.test(normalised)) {
+    const subs = [];
+    const blocks = normalised.split(/\n\n+/);
+    for (const block of blocks) {
+      const lines = block.trim().split('\n');
+      const tIdx  = lines.findIndex(l => tsPattern.test(l));
+      if (tIdx < 0) continue;
+      const m     = lines[tIdx].match(tsPattern);
+      const start = srtTimeToSec(m[1]);
+      const end   = srtTimeToSec(m[2]);
+      const text  = lines.slice(tIdx + 1).filter(l => l.trim()).join(' ');
+      if (text) subs.push({ start, end, text });
+    }
+    if (subs.length) return subs;
+  }
+
+  // Format B: plain lines, assign dummy sequential timestamps (1 s each)
+  const lines = normalised.split('\n').map(l => l.trim()).filter(Boolean);
+  return lines.map((text, i) => ({ start: i, end: i + 1, text }));
 }
