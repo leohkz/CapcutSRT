@@ -1,5 +1,5 @@
 // ==========================================
-// Tools — processing pipeline + formatters
+// Tools
 // ==========================================
 
 const DEFAULT_PARTICLES = ['嗯','啊','哦','嗳','那','就','然后','然後','唔','系','即係','即是','問','啦','誒','話','悔','喔','咼'];
@@ -32,24 +32,29 @@ function buildParticleRegex() {
 }
 
 // ==========================================
-// Chinese conversion via opencc-js
-// full.js is loaded in <head> so window.OpenCC is always available.
-// Converters are cached after first use.
+// OpenCC — full.js loaded in <head>, window.OpenCC always available
+// getZhConverter() returns a cached SYNC converter function
 // ==========================================
 const _zhConverters = {};
 
 function getZhConverter(mode) {
   if (_zhConverters[mode]) return _zhConverters[mode];
   if (typeof OpenCC === 'undefined') {
-    console.warn('OpenCC not loaded');
+    console.error('OpenCC is not defined. Make sure full.js is loaded in <head>.');
     return null;
   }
-  const args = mode === 's2t' ? { from: 'cn', to: 'tw' } : { from: 'tw', to: 'cn' };
-  _zhConverters[mode] = OpenCC.Converter(args);
-  return _zhConverters[mode];
+  try {
+    const args = mode === 's2t' ? { from: 'cn', to: 'tw' } : { from: 'tw', to: 'cn' };
+    _zhConverters[mode] = OpenCC.Converter(args);
+    console.log('OpenCC converter created for mode:', mode, typeof _zhConverters[mode]);
+    return _zhConverters[mode];
+  } catch(e) {
+    console.error('OpenCC.Converter() failed:', e);
+    return null;
+  }
 }
 
-// convertSubtitles is kept async for API compatibility but is effectively sync
+// kept for export compatibility
 async function convertSubtitles(subs, mode) {
   if (!mode || mode === 'none') return subs;
   const converter = getZhConverter(mode);
@@ -64,7 +69,6 @@ function isLongSub(s) {
   const t = parseFloat(document.getElementById('long-sub-threshold')?.value) || 8;
   return (s.end - s.start) > t;
 }
-
 function toSRTTime(sec) {
   const h  = Math.floor(sec / 3600);
   const m  = Math.floor((sec % 3600) / 60);

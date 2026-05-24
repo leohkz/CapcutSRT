@@ -1,5 +1,5 @@
 // ==========================================
-// UI — drop zone, file handling, render, export
+// UI
 // ==========================================
 
 const LS = {
@@ -119,7 +119,6 @@ function loadToggleState() {
 }
 
 // ---- Replace Rules ----
-// NOTE: replaceRules must be declared here (ui.js) before tools.js functions that reference it
 let replaceRules = [];
 function saveReplaceRules() { LS.set('replaceRules', replaceRules.map(r => ({ find: r.find, rep: r.rep }))); }
 function addReplaceRow(find = '', rep = '') {
@@ -160,7 +159,6 @@ fileInput.addEventListener('change', e => { if(e.target.files&&e.target.files.le
 
 async function handleFile(file) {
   document.getElementById('error-msg').classList.add('hidden');
-  // --- Step 1: Parse file ---
   try {
     const raw  = await file.text();
     const name = file.name.toLowerCase();
@@ -182,11 +180,9 @@ async function handleFile(file) {
     showError(t('errorBadFile') + (err.message ? ' ('+err.message+')' : ''));
     return;
   }
-  // --- Step 2: Update filename UI ---
   const fnInput = document.getElementById('filename-input');
   if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
   document.getElementById('tools-panel').classList.remove('hidden');
-  // --- Step 3: Render (separate try so parse errors don't hide render errors) ---
   try {
     await renderResults();
   } catch(err) {
@@ -209,16 +205,32 @@ function autoResizeFilenameInput(el) {
 
 // ==========================================
 // renderResults
+// Uses a generation counter to cancel stale async renders.
+// All zh conversion is done SYNCHRONOUSLY via the pre-loaded OpenCC.
 // ==========================================
+let _renderGen = 0;
+
 async function renderResults() {
+  const myGen = ++_renderGen;
+
   const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
 
+  // Build processed list (sync)
   let tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
   tagged = applyToolsTagged(tagged);
 
+  // zh conversion is sync (OpenCC loaded in <head>)
   if (zhMode !== 'none') {
-    tagged = await convertSubtitles(tagged, zhMode);
+    const converter = getZhConverter(zhMode);
+    if (converter) {
+      tagged = tagged.map(s => ({ ...s, text: converter(s.text) }));
+    } else {
+      console.warn('OpenCC converter not available for mode:', zhMode);
+    }
   }
+
+  // Stale check (in case another renderResults() was called)
+  if (myGen !== _renderGen) return;
 
   const showOnlyLong = document.getElementById('toggle-show-only-long')?.checked || false;
   const display      = showOnlyLong ? tagged.filter(s => isLongSub(s)) : tagged;
@@ -245,7 +257,7 @@ async function renderResults() {
 
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input'; ta.rows = 1; ta.spellcheck = false;
-    ta.value = s.text;
+    ta.value = s.text;  // converted text shown here
     ta.addEventListener('input', function() {
       this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';
       parsedSubs[srcIdx].text = this.value;
@@ -259,7 +271,7 @@ async function renderResults() {
 
     let curStart = s.start;
     let curEnd   = s.end;
-    let durInput = null;  // declared BEFORE updateDurBadge to avoid TDZ error
+    let durInput = null;
 
     function updateDurBadge() {
       const d = curEnd - curStart;
@@ -300,7 +312,6 @@ async function renderResults() {
       v  => { curEnd = v; parsedSubs[srcIdx].end = v; }
     );
 
-    // Assign to the let declared above
     durInput = document.createElement('input');
     durInput.type = 'number'; durInput.className = 'dur-input';
     durInput.min = '0'; durInput.step = '0.1';
@@ -337,7 +348,6 @@ async function renderResults() {
   panel.classList.remove('hidden'); panel.classList.add('flex');
 }
 
-// applyTools preserving _srcIdx
 function applyToolsTagged(tagged) {
   const offset      = parseFloat(document.getElementById('time-offset').value) || 0;
   const doParticles = document.getElementById('toggle-particles').checked;
@@ -379,7 +389,10 @@ async function getExportSubs() {
   const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
   let tagged = parsedSubs.map((s,i) => ({...s,_srcIdx:i}));
   tagged = applyToolsTagged(tagged);
-  if (zhMode !== 'none') tagged = await convertSubtitles(tagged, zhMode);
+  if (zhMode !== 'none') {
+    const converter = getZhConverter(zhMode);
+    if (converter) tagged = tagged.map(s => ({...s, text: converter(s.text)}));
+  }
   return tagged;
 }
 
