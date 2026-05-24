@@ -42,7 +42,6 @@ body {
 .lang-btn.active { background: rgba(139,92,246,0.3); color: #c4b5fd; border-color: rgba(139,92,246,0.5); }
 .subtitle-row { animation: slideIn 0.3s ease-out forwards; opacity:0; transform:translateX(-10px); }
 @keyframes slideIn { to { opacity:1; transform:translateX(0); } }
-.subtitle-row.long-line { background: rgba(239,68,68,0.08); border-left: 3px solid rgba(239,68,68,0.6); }
 .code-block {
   background: rgba(15,23,42,0.8);
   border: 1px solid rgba(139,92,246,0.2);
@@ -123,7 +122,7 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 
   <!-- Drop Zone -->
   <div id="drop-zone" class="drop-zone rounded-2xl p-8 md:p-12 text-center cursor-pointer group relative select-none">
-    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" accept=".json,.srt,application/json,text/plain">
+    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" accept=".json,application/json">
     <div class="relative z-10 pointer-events-none flex flex-col items-center gap-4">
       <div class="p-4 bg-slate-800/50 rounded-full border border-slate-700 group-hover:border-violet-500 group-hover:bg-slate-800 transition-all">
         <svg class="w-8 h-8 text-slate-300 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,19 +163,6 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
           <div><p class="text-sm text-white" data-i18n="mergeSame"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="mergeSameSub"></p></div>
           <label class="toggle-switch"><input type="checkbox" id="toggle-merge"><span class="toggle-slider"></span></label>
         </div>
-        <!-- Long line detector -->
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm text-white" data-i18n="longLine"></p>
-            <p class="text-xs text-slate-500 mt-0.5" data-i18n="longLineSub"></p>
-          </div>
-          <label class="toggle-switch"><input type="checkbox" id="toggle-longline" checked><span class="toggle-slider"></span></label>
-        </div>
-        <div class="flex items-center gap-2">
-          <input type="number" id="longline-sec" value="8" min="1" step="1"
-            class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-red-500">
-          <span class="text-xs text-slate-400" data-i18n="longLineSuffix"></span>
-        </div>
         <div>
           <p class="text-sm text-white mb-2" data-i18n="timeOffset"></p>
           <div class="flex items-center gap-2">
@@ -186,16 +172,14 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
           </div>
         </div>
       </div>
-      <!-- Right -->
-      <div class="space-y-6">
-        <div>
-          <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
-          <div id="replace-list" class="space-y-2 mb-3"></div>
-          <button id="add-replace-btn" class="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            <span data-i18n="addRule"></span>
-          </button>
-        </div>
+      <!-- Right: Replacements -->
+      <div>
+        <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
+        <div id="replace-list" class="space-y-2 mb-3"></div>
+        <button id="add-replace-btn" class="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span data-i18n="addRule"></span>
+        </button>
       </div>
     </div>
   </div>
@@ -208,7 +192,6 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
         &nbsp;·&nbsp;
         <span id="subtitle-count" class="text-white font-bold">0</span>
         <span data-i18n="subtitleLines"></span>
-        <span id="long-count-badge" class="hidden ml-2 px-2 py-0.5 bg-red-900/40 text-red-300 text-xs rounded-full border border-red-500/30"></span>
       </div>
       <div class="flex flex-wrap gap-2">
         <button onclick="exportFile('srt')" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-medium transition-all active:scale-95 flex items-center gap-1.5 shadow-lg shadow-violet-900/40">
@@ -263,12 +246,12 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 const i18n = {
   en: {
     tagline: 'CapCut Subtitle Exporter',
-    desc: 'Import <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> (CapCut) or any <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> file. Export as SRT, TXT, or plain text. 100% local — nothing is uploaded.',
+    desc: 'Open your CapCut project <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> and export subtitles as SRT, TXT, or plain text. 100% local — nothing is uploaded.',
     osGuideTitle: '📂 Where is my CapCut project file?',
     osGuideSub: 'Navigate to the folder below, open your project folder, and drag the draft_content.json file here.',
     osGuideNote: 'Replace "user" with your actual username. Each project has its own subfolder inside com.lveditor.draft.',
-    dropTitle: 'Click or drag & drop your file',
-    dropSub: 'CapCut draft_content.json  ·  or any .srt file',
+    dropTitle: 'Click or drag & drop draft_content.json',
+    dropSub: 'CapCut project file · 100% browser-side parsing',
     dropHint: 'No upload · Fully private',
     advancedTools: 'Advanced Processing Tools',
     deleteParticles: 'Remove modal particles / filler words',
@@ -277,9 +260,6 @@ const i18n = {
     removeEmptySub: 'Skip lines with no meaningful text',
     mergeSame: 'Merge consecutive duplicate lines',
     mergeSameSub: 'Combine back-to-back identical subtitles',
-    longLine: 'Highlight long dialogue lines',
-    longLineSub: 'Mark lines longer than X seconds in red',
-    longLineSuffix: 'seconds threshold',
     timeOffset: 'Time offset',
     seconds: 'seconds  (positive or negative)',
     textReplace: 'Text replacement rules',
@@ -295,18 +275,17 @@ const i18n = {
     preview: 'Preview',
     previewNote: 'Showing up to 200 lines',
     errorTitle: 'Parse Error',
-    errorBadFile: 'Could not parse this file.',
+    errorBadFile: 'Could not parse this file. Please make sure it is a valid CapCut draft_content.json.',
     copied: 'Copied!',
-    longBadge: (n) => `${n} long`,
   },
   'zh-TW': {
     tagline: 'CapCut 字幕匯出工具',
-    desc: '匯入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 檔。匯出 SRT、TXT 或純文字。100% 本機解析。',
+    desc: '開啟 CapCut 的 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> 存檔，即可匯出 SRT、TXT 或純文字字幕。100% 本機解析，不上傳任何資料。',
     osGuideTitle: '📂 如何找到 CapCut 的存檔？',
     osGuideSub: '前往以下路徑，進入你的專案資料夾，把 draft_content.json 拖曳到這裡。',
     osGuideNote: '請將 "user" 替換為你的實際用戶名稱。每個專案在 com.lveditor.draft 內都有獨立資料夾。',
-    dropTitle: '點擊或拖曳檔案',
-    dropSub: 'CapCut draft_content.json  ·  或任何 .srt 檔案',
+    dropTitle: '點擊或拖曳 draft_content.json',
+    dropSub: 'CapCut 存檔 · 100% 瀏覽器本地解析',
     dropHint: '不上傳 · 完全私密',
     advancedTools: '進階處理工具',
     deleteParticles: '刪除語氣詞 / 填充詞',
@@ -315,9 +294,6 @@ const i18n = {
     removeEmptySub: '跳過沒有實質內容的行',
     mergeSame: '合併連續重複行',
     mergeSameSub: '合併前後相同的字幕句',
-    longLine: '醒目長對白行',
-    longLineSub: '超過 X 秒的字幕用紅色標記',
-    longLineSuffix: '秒閾值',
     timeOffset: '時間偏移',
     seconds: '秒（正數或負數）',
     textReplace: '文字取代規則',
@@ -333,18 +309,17 @@ const i18n = {
     preview: '預覽',
     previewNote: '最多顯示 200 行',
     errorTitle: '解析錯誤',
-    errorBadFile: '無法解析此檔案。',
+    errorBadFile: '無法解析此檔案，請確認是有效的 CapCut draft_content.json。',
     copied: '已複製！',
-    longBadge: (n) => `${n} 行過長`,
   },
   'zh-CN': {
     tagline: 'CapCut 字幕导出工具',
-    desc: '导入 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code>（CapCut）或任何 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">.srt</code> 文件。导出 SRT、TXT 或纯文本。100% 本地解析。',
+    desc: '打开 CapCut 的 <code class="bg-slate-800 px-1 py-0.5 rounded text-violet-300 text-xs">draft_content.json</code> 存档，即可导出 SRT、TXT 或纯文本字幕。100% 本地解析，不上传任何数据。',
     osGuideTitle: '📂 如何找到 CapCut 的存档？',
     osGuideSub: '前往以下路径，进入你的项目文件夹，把 draft_content.json 拖拽到这里。',
     osGuideNote: '请将 "user" 替换为你的实际用户名。每个项目在 com.lveditor.draft 内都有独立文件夹。',
-    dropTitle: '点击或拖拽文件',
-    dropSub: 'CapCut draft_content.json  ·  或任何 .srt 文件',
+    dropTitle: '点击或拖拽 draft_content.json',
+    dropSub: 'CapCut 存档 · 100% 浏览器本地解析',
     dropHint: '不上传 · 完全私密',
     advancedTools: '高级处理工具',
     deleteParticles: '删除语气词 / 填充词',
@@ -353,9 +328,6 @@ const i18n = {
     removeEmptySub: '跳过没有实质内容的行',
     mergeSame: '合并连续重复行',
     mergeSameSub: '合并前后相同的字幕句',
-    longLine: '标记过长对白行',
-    longLineSub: '超过 X 秒的字幕用红色标记',
-    longLineSuffix: '秒阈值',
     timeOffset: '时间偏移',
     seconds: '秒（正数或负数）',
     textReplace: '文字替换规则',
@@ -371,9 +343,8 @@ const i18n = {
     preview: '预览',
     previewNote: '最多显示 200 行',
     errorTitle: '解析错误',
-    errorBadFile: '无法解析此文件。',
+    errorBadFile: '无法解析此文件，请确认是有效的 CapCut draft_content.json。',
     copied: '已复制！',
-    longBadge: (n) => `${n} 行过长`,
   }
 };
 
@@ -387,7 +358,6 @@ function applyLang(lang) {
   document.querySelectorAll('.replace-find').forEach(i => i.placeholder = t('findPlaceholder'));
   document.querySelectorAll('.replace-with').forEach(i => i.placeholder = t('replacePlaceholder'));
   renderOsGuide();
-  if(parsedSubs.length) renderResults();
 }
 document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => applyLang(b.dataset.lang)));
 
@@ -402,6 +372,7 @@ function detectOS() {
   if (/Mac/.test(ua)) return 'mac';
   return 'other';
 }
+
 const osPaths = {
   windows: 'C:\\Users\\user\\AppData\\Local\\CapCut\\User Data\\Projects\\com.lveditor.draft\\',
   mac: '/Users/user/Movies/CapCut/User Data/Projects/com.lveditor.draft/',
@@ -410,6 +381,7 @@ const osPaths = {
   other: 'Please check your CapCut app settings for the project file location.',
 };
 const osIcons = { windows:'🪟', mac:'🍎', ios:'📱', android:'🤖', other:'🐧' };
+
 function renderOsGuide() {
   const os = detectOS();
   document.getElementById('os-icon').textContent = osIcons[os];
@@ -453,96 +425,97 @@ window.removeReplaceRow = function(id) {
 document.getElementById('add-replace-btn').addEventListener('click', ()=>addReplaceRow());
 
 // ==========================================
-// Parsers
+// CapCut JSON Parser — subtitle_cache_info / sentencelist
 // ==========================================
 const MODAL_PARTICLES = /[嗯啊哦嗳那就然后然後唔系即係即是]+/g;
 
 function parseCapcut(data) {
   const subs = [];
+
+  // ── Strategy 1: materials.subtitle_cache_info[].sentencelist[]
+  // This is the format used by auto-transcribe / AI subtitle in CapCut
   const mats = data.materials || {};
   const cacheInfos = mats.subtitle_cache_info || [];
   for (const cacheBlock of cacheInfos) {
     const sentences = cacheBlock.sentence_list || cacheBlock.sentencelist || cacheBlock.sentences || [];
     for (const sentence of sentences) {
+      // starttime / endtime are in microseconds
       const startUs = sentence.start_time  ?? sentence.starttime  ?? null;
       const endUs   = sentence.end_time    ?? sentence.endtime    ?? null;
       const text    = sentence.text ?? '';
       if (startUs === null || endUs === null || !text.trim()) continue;
-      subs.push({ start: startUs / 1000000, end: endUs / 1000000, text: text.trim() });
+      subs.push({
+        start: startUs / 1000000,
+        end:   endUs   / 1000000,
+        text:  text.trim()
+      });
     }
   }
+
+  // ── Strategy 2: tracks[type=text].segments → content JSON
   if (subs.length === 0) {
     const tracks = data.tracks || [];
     const textMats = {};
     for (const tm of (mats.texts || [])) { if (tm.id) textMats[tm.id] = tm; }
+
     for (const track of tracks) {
       if (track.type !== 'text') continue;
       for (const seg of (track.segments || [])) {
         const tr = seg.target_timerange || {};
         const start = (tr.start || 0) / 1000000;
         const dur   = (tr.duration || 0) / 1000000;
-        const mat   = textMats[seg.material_id];
+        const matId = seg.material_id;
+        const mat   = textMats[matId];
         let text = '';
         if (mat) {
-          try { const p = typeof mat.content === 'string' ? JSON.parse(mat.content) : mat.content; text = (p && typeof p.text === 'string') ? p.text : String(mat.content || ''); } catch { text = String(mat.content || mat.text || ''); }
+          try {
+            const parsed = typeof mat.content === 'string' ? JSON.parse(mat.content) : mat.content;
+            text = (parsed && typeof parsed.text === 'string') ? parsed.text : String(mat.content || '');
+          } catch { text = String(mat.content || mat.text || ''); }
         } else if (seg.content) {
-          try { const p = typeof seg.content === 'string' ? JSON.parse(seg.content) : seg.content; text = (p && typeof p.text === 'string') ? p.text : String(seg.content); } catch { text = String(seg.content); }
+          try {
+            const p = typeof seg.content === 'string' ? JSON.parse(seg.content) : seg.content;
+            text = (p && typeof p.text === 'string') ? p.text : String(seg.content);
+          } catch { text = String(seg.content); }
         }
         if (text.trim()) subs.push({ start, end: start + dur, text: text.trim() });
       }
     }
   }
+
+  // ── Strategy 3: materials.texts[] direct (older format)
   if (subs.length === 0) {
     for (const tm of (mats.texts || [])) {
       const tr = tm.timerange || {};
       const start = (tr.start || 0) / 1000000;
       const dur   = (tr.duration || 0) / 1000000;
       let text = '';
-      try { const p = typeof tm.content === 'string' ? JSON.parse(tm.content) : tm.content; text = (p && typeof p.text === 'string') ? p.text : String(tm.content || tm.text || ''); } catch { text = String(tm.content || tm.text || ''); }
+      try {
+        const p = typeof tm.content === 'string' ? JSON.parse(tm.content) : tm.content;
+        text = (p && typeof p.text === 'string') ? p.text : String(tm.content || tm.text || '');
+      } catch { text = String(tm.content || tm.text || ''); }
       if (text.trim()) subs.push({ start, end: start + dur, text: text.trim() });
     }
   }
+
   return subs.sort((a, b) => a.start - b.start);
 }
 
-function parseSRT(raw) {
-  const subs = [];
-  const blocks = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split(/\n\n+/);
-  for (const block of blocks) {
-    const lines = block.trim().split('\n');
-    if (lines.length < 2) continue;
-    const tIdx = lines.findIndex(l => /-->/.test(l));
-    if (tIdx < 0) continue;
-    const parts = lines[tIdx].split('-->');
-    if (parts.length < 2) continue;
-    const start = srtTimeToSec(parts[0].trim());
-    const end   = srtTimeToSec(parts[1].trim());
-    const text  = lines.slice(tIdx + 1).filter(l => l.trim()).join(' ');
-    if (text) subs.push({ start, end, text });
-  }
-  return subs;
-}
-
-function srtTimeToSec(s) {
-  const m = s.match(/(\d+):(\d+):(\d+)[,\.](\d+)/);
-  if (!m) return 0;
-  return +m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, '0') / 1000;
-}
-
-// ==========================================
-// Tools
-// ==========================================
 function applyTools(subs) {
-  const offset      = parseFloat(document.getElementById('time-offset').value)||0;
+  const offset = parseFloat(document.getElementById('time-offset').value)||0;
   const doParticles = document.getElementById('toggle-particles').checked;
-  const doEmpty     = document.getElementById('toggle-empty').checked;
-  const doMerge     = document.getElementById('toggle-merge').checked;
+  const doEmpty = document.getElementById('toggle-empty').checked;
+  const doMerge = document.getElementById('toggle-merge').checked;
+
   let result = subs.map(s => ({...s, start:Math.max(0,s.start+offset), end:Math.max(0,s.end+offset)}));
+
+  // Text replacements
   result = result.map(s => {
     let text = s.text;
     for (const r of replaceRules) { if(r.find) text = text.split(r.find).join(r.rep); }
     return {...s, text};
   });
+
   if (doParticles) result = result.map(s => ({...s, text: s.text.replace(MODAL_PARTICLES,'').trim()}));
   if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
   if (doMerge) {
@@ -585,18 +558,11 @@ fileInput.addEventListener('change', e => { if(e.target.files?.length) handleFil
 async function handleFile(file) {
   document.getElementById('error-msg').classList.add('hidden');
   try {
-    const raw = await file.text();
-    const isSRT = file.name.toLowerCase().endsWith('.srt');
-    if (isSRT) {
-      parsedSubs = parseSRT(raw);
-      if (parsedSubs.length === 0) throw new Error('No valid SRT blocks found.');
-      currentFileName = file.name.replace(/\.srt$/i, '');
-    } else {
-      const json = JSON.parse(raw);
-      parsedSubs = parseCapcut(json);
-      if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles.');
-      currentFileName = file.name.replace(/\.json$/i, '');
-    }
+    const text = await file.text();
+    const json = JSON.parse(text);
+    parsedSubs = parseCapcut(json);
+    if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles (AI subtitle / speech-to-text).');
+    currentFileName = file.name.replace(/\.json$/i,'');
     document.getElementById('tools-panel').classList.remove('hidden');
     renderResults();
   } catch(err) {
@@ -605,34 +571,19 @@ async function handleFile(file) {
 }
 
 function renderResults() {
-  const processed  = applyTools(parsedSubs);
-  const doLongLine = document.getElementById('toggle-longline').checked;
-  const longSec    = parseFloat(document.getElementById('longline-sec').value) || 8;
-
+  const processed = applyTools(parsedSubs);
   document.getElementById('subtitle-count').textContent = processed.length;
   document.getElementById('file-name-display').textContent = currentFileName;
-
-  const longCount = doLongLine ? processed.filter(s => (s.end - s.start) > longSec).length : 0;
-  const badge = document.getElementById('long-count-badge');
-  if (doLongLine && longCount > 0) {
-    badge.textContent = (typeof t('longBadge') === 'function') ? t('longBadge')(longCount) : `${longCount} long`;
-    badge.classList.remove('hidden');
-  } else {
-    badge.classList.add('hidden');
-  }
-
   const list = document.getElementById('preview-list');
   list.innerHTML = '';
   processed.slice(0,200).forEach((s,i) => {
-    const isLong = doLongLine && (s.end - s.start) > longSec;
-    const dur    = (s.end - s.start).toFixed(1);
     const row = document.createElement('div');
-    row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors' + (isLong ? ' long-line' : '');
+    row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors';
     row.innerHTML = `
-      <span class="text-xs ${isLong ? 'text-red-400' : 'text-slate-600'} font-mono w-8 shrink-0 pt-0.5 text-right">${i+1}</span>
+      <span class="text-xs text-slate-600 font-mono w-8 shrink-0 pt-0.5 text-right">${i+1}</span>
       <div class="flex-1 min-w-0">
         <p class="text-sm text-white break-words">${escHtml(s.text)}</p>
-        <p class="text-xs ${isLong ? 'text-red-400/70' : 'text-slate-500'} mt-0.5 font-mono">${toSRTTime(s.start)} → ${toSRTTime(s.end)}${isLong ? ' <span class="text-red-400">⚠️ '+dur+'s</span>' : ''}</p>
+        <p class="text-xs text-slate-500 mt-0.5 font-mono">${toSRTTime(s.start)} → ${toSRTTime(s.end)}</p>
       </div>`;
     list.appendChild(row);
   });
@@ -640,15 +591,18 @@ function renderResults() {
   document.getElementById('results-panel').classList.add('flex');
 }
 
-['toggle-particles','toggle-empty','toggle-merge','toggle-longline'].forEach(id => {
+['toggle-particles','toggle-empty','toggle-merge'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => { if(parsedSubs.length) renderResults(); });
 });
 document.getElementById('time-offset').addEventListener('input', () => { if(parsedSubs.length) renderResults(); });
-document.getElementById('longline-sec').addEventListener('input', () => { if(parsedSubs.length) renderResults(); });
 
 window.exportFile = function(type) {
   const p = applyTools(parsedSubs);
-  const map = { srt:[buildSRT(p),'srt'], txt:[buildTXT(p),'txt'], plain:[buildPlain(p),'txt'] };
+  const map = {
+    srt: [buildSRT(p), 'srt'],
+    txt: [buildTXT(p), 'txt'],
+    plain: [buildPlain(p), 'txt'],
+  };
   const [content, ext] = map[type];
   const blob = new Blob(['\uFEFF'+content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
