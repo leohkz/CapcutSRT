@@ -103,6 +103,12 @@ async function handleFile(file) {
       if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles.');
       currentFileName = file.name.replace(/\.json$/i, '');
     }
+    // sync filename input
+    const fnInput = document.getElementById('filename-input');
+    if (fnInput) {
+      fnInput.value = currentFileName;
+      autoResizeFilenameInput(fnInput);
+    }
     document.getElementById('tools-panel').classList.remove('hidden');
     renderResults();
   } catch (err) {
@@ -110,24 +116,76 @@ async function handleFile(file) {
   }
 }
 
+// ---- Filename input auto-width ----
+function autoResizeFilenameInput(el) {
+  // use a hidden span to measure text width
+  let ruler = document.getElementById('filename-ruler');
+  if (!ruler) {
+    ruler = document.createElement('span');
+    ruler.id = 'filename-ruler';
+    ruler.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;font-size:0.875rem;font-family:inherit;font-weight:500;';
+    document.body.appendChild(ruler);
+  }
+  ruler.textContent = el.value || el.placeholder || 'subtitles';
+  el.style.width = (ruler.offsetWidth + 16) + 'px';
+}
+
 // ---- Render ----
 function renderResults() {
   const processed = applyTools(parsedSubs);
   document.getElementById('subtitle-count').textContent = processed.length;
-  document.getElementById('file-name-display').textContent = currentFileName;
 
+  // render each subtitle row with an editable textarea
   const list = document.getElementById('preview-list');
   list.innerHTML = '';
+
   processed.slice(0, 200).forEach((s, i) => {
     const row = document.createElement('div');
     row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors';
-    row.innerHTML = `
-      <span class="text-xs text-slate-600 font-mono w-8 shrink-0 pt-0.5 text-right">${i + 1}</span>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm text-white break-words">${escHtml(s.text)}</p>
-        <p class="text-xs text-slate-500 mt-0.5 font-mono">${toSRTTime(s.start)} → ${toSRTTime(s.end)}</p>
-      </div>`;
+
+    const ta = document.createElement('textarea');
+    ta.className = 'sub-text-input';
+    ta.rows = 1;
+    ta.spellcheck = false;
+    ta.value = s.text;
+    ta.dataset.origIdx = i;
+
+    // auto-height on render
+    ta.style.height = 'auto';
+
+    // write-back to parsedSubs when user edits
+    ta.addEventListener('input', function () {
+      this.style.height = 'auto';
+      this.style.height = this.scrollHeight + 'px';
+      // update the processed entry and the source parsedSubs entry by matching index
+      processed[i].text = this.value;
+      // find the closest match in parsedSubs by start time
+      const src = parsedSubs.find(x => Math.abs(x.start - s.start) < 0.001);
+      if (src) src.text = this.value;
+    });
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
+    numSpan.textContent = i + 1;
+
+    const right = document.createElement('div');
+    right.className = 'flex-1 min-w-0';
+
+    const timeLine = document.createElement('p');
+    timeLine.className = 'text-xs text-slate-500 mt-1 font-mono';
+    timeLine.textContent = toSRTTime(s.start) + ' → ' + toSRTTime(s.end);
+
+    right.appendChild(ta);
+    right.appendChild(timeLine);
+    row.appendChild(numSpan);
+    row.appendChild(right);
     list.appendChild(row);
+
+    // set height after appended to DOM
+    requestAnimationFrame(() => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
   });
 
   const panel = document.getElementById('results-panel');
@@ -139,6 +197,15 @@ function renderResults() {
   document.getElementById(id).addEventListener('change', () => { if (parsedSubs.length) renderResults(); })
 );
 document.getElementById('time-offset').addEventListener('input', () => { if (parsedSubs.length) renderResults(); });
+
+// ---- Filename input wiring (runs after DOM ready) ----
+const fnInput = document.getElementById('filename-input');
+if (fnInput) {
+  fnInput.addEventListener('input', function () {
+    currentFileName = this.value.trim() || 'subtitles';
+    autoResizeFilenameInput(this);
+  });
+}
 
 // ---- Export ----
 window.exportFile = function (type) {
@@ -180,6 +247,8 @@ window.clearAll = function () {
   document.getElementById('tools-panel').classList.add('hidden');
   document.getElementById('preview-list').innerHTML = '';
   fileInput.value = '';
+  const fn = document.getElementById('filename-input');
+  if (fn) { fn.value = ''; autoResizeFilenameInput(fn); }
 };
 
 // ---- Helpers ----

@@ -73,3 +73,50 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 ::-webkit-scrollbar-track { background:rgba(15,23,42,0.5); border-radius:3px; }
 ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background:#64748b; }
+
+/* ---- Editable filename ---- */
+.filename-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  outline: none;
+  color: #c4b5fd;        /* violet-300 */
+  font-weight: 500;
+  font-size: 0.875rem;   /* text-sm */
+  font-family: inherit;
+  padding: 0 2px;
+  min-width: 4ch;
+  max-width: 260px;
+  transition: border-color 0.2s;
+}
+.filename-input:hover {
+  border-bottom-color: rgba(139,92,246,0.4);
+}
+.filename-input:focus {
+  border-bottom-color: #8b5cf6;
+}
+
+/* ---- Inline subtitle textarea ---- */
+.sub-text-input {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  outline: none;
+  color: #f1f5f9;        /* slate-100 */
+  font-size: 0.875rem;
+  font-family: inherit;
+  line-height: 1.5;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+.sub-text-input:hover {
+  background: rgba(255,255,255,0.04);
+}
+.sub-text-input:focus {
+  background: rgba(139,92,246,0.10);
+  box-shadow: 0 0 0 1px rgba(139,92,246,0.35);
+}
