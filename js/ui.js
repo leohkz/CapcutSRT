@@ -140,9 +140,13 @@ document.getElementById('add-replace-btn').addEventListener('click', () => { add
 (function(){ const saved = LS.get('replaceRules',[]); for(const r of saved) addReplaceRow(r.find,r.rep); })();
 
 // ==========================================
-// File Handling — supports batch SRT/TXT
+// File state
+// parsedFiles: [{ name, subs }]  — one entry per uploaded file
+// parsedSubs:  flat array for preview (merged, with _fileIdx + _srcIdx)
 // ==========================================
-let parsedSubs      = [];
+let parsedFiles = [];   // [{ name: 'ep01', subs: [...] }]
+let parsedSubs  = [];   // flat merged array for preview/edit
+let isBatch     = false;
 let currentFileName = 'subtitles';
 
 const dropZone  = document.getElementById('drop-zone');
@@ -158,77 +162,64 @@ async function handleFiles(fileList) {
   document.getElementById('batch-bar').classList.add('hidden');
   const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name));
 
-  // Reject mixed JSON + SRT/TXT
-  const hasJson = files.some(f => f.name.toLowerCase().endsWith('.json'));
-  const hasOther = files.some(f => !f.name.toLowerCase().endsWith('.json'));
+  const hasJson  = files.some(f => f.name.toLowerCase().endsWith('.json'));
   if (hasJson && files.length > 1) {
     showError('CapCut JSON 檔案不支援批量上傳，請單檔處理。'); return;
   }
 
-  // Parse all files
-  const allSubs = [];
-  const fileNames = [];
+  const newFiles = [];
   try {
     for (const file of files) {
       const raw  = await file.text();
       const name = file.name.toLowerCase();
       let subs;
-      if (name.endsWith('.srt')) {
-        subs = parseSRT(raw);
-        if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
-      } else if (name.endsWith('.txt')) {
-        subs = parseTXT(raw);
-        if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
-      } else {
-        // JSON
-        const json = JSON.parse(raw);
-        subs = parseCapcut(json);
-        if (!subs.length) throw new Error('找不到字幕資料。');
-      }
-      allSubs.push(...subs);
-      fileNames.push(file.name);
+      if (name.endsWith('.srt'))       subs = parseSRT(raw);
+      else if (name.endsWith('.txt'))  subs = parseTXT(raw);
+      else                             subs = parseCapcut(JSON.parse(raw));
+      if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
+      newFiles.push({ name: file.name.replace(/\.(srt|txt|json)$/i, ''), subs });
     }
   } catch(err) {
     showError(t('errorBadFile') + (err.message ? ' (' + err.message + ')' : ''));
     return;
   }
 
-  // For multiple files: sort merged subs by start time
-  parsedSubs = files.length > 1
-    ? allSubs.sort((a, b) => a.start - b.start)
-    : allSubs;
+  parsedFiles = newFiles;
+  isBatch     = files.length > 1;
 
-  currentFileName = files.length === 1
-    ? files[0].name.replace(/\.(srt|txt|json)$/i, '')
-    : 'merged';
+  // Flatten for preview: tag each sub with fileIdx + srcIdx so edits write back correctly
+  parsedSubs = [];
+  for (let fi = 0; fi < parsedFiles.length; fi++) {
+    for (let si = 0; si < parsedFiles[fi].subs.length; si++) {
+      parsedSubs.push({ ...parsedFiles[fi].subs[si], _fileIdx: fi, _srcIdx: si });
+    }
+  }
 
-  // Update filename input
+  currentFileName = isBatch ? parsedFiles[0].name : parsedFiles[0].name;
+
   const fnInput = document.getElementById('filename-input');
-  if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
+  if (fnInput) {
+    fnInput.value = isBatch ? `${parsedFiles[0].name} 等 ${parsedFiles.length} 個檔案` : parsedFiles[0].name;
+    autoResizeFilenameInput(fnInput);
+  }
 
-  // Show batch bar for multiple files
-  if (files.length > 1) {
+  if (isBatch) {
     document.getElementById('batch-title').textContent =
-      `批量處理 ${files.length} 個檔案，已依時間排序合併`;
+      `批量處理 ${parsedFiles.length} 個檔案，匯出時將打包為 ZIP`;
     const listEl = document.getElementById('batch-file-list');
     listEl.innerHTML = '';
-    for (const name of fileNames) {
+    for (const f of parsedFiles) {
       const tag = document.createElement('span');
       tag.className = 'px-2 py-0.5 bg-slate-700 rounded text-xs text-slate-300 font-mono';
-      tag.textContent = name;
+      tag.textContent = f.name;
       listEl.appendChild(tag);
     }
     document.getElementById('batch-bar').classList.remove('hidden');
   }
 
   document.getElementById('tools-panel').classList.remove('hidden');
-
-  try {
-    await renderResults();
-  } catch(err) {
-    console.error('renderResults failed:', err);
-    showError('Render error: ' + err.message);
-  }
+  try { await renderResults(); }
+  catch(err) { console.error('renderResults failed:', err); showError('Render error: ' + err.message); }
 }
 
 function autoResizeFilenameInput(el) {
@@ -244,22 +235,18 @@ function autoResizeFilenameInput(el) {
 }
 
 // ==========================================
-// renderResults
+// renderResults — preview uses flat parsedSubs
 // ==========================================
 let _renderGen = 0;
 
 async function renderResults() {
-  const myGen = ++_renderGen;
+  const myGen  = ++_renderGen;
   const zhMode = document.getElementById('zh-convert-select')?.value || 'none';
+  const conv   = (zhMode !== 'none') ? getZhConverter(zhMode) : null;
 
-  let tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
+  let tagged = parsedSubs.map((s, i) => ({ ...s, _flatIdx: i }));
   tagged = applyToolsTagged(tagged);
-
-  if (zhMode !== 'none') {
-    const converter = getZhConverter(zhMode);
-    if (converter) tagged = tagged.map(s => ({ ...s, text: converter(s.text) }));
-    else console.warn('OpenCC converter not available for mode:', zhMode);
-  }
+  if (conv) tagged = tagged.map(s => ({ ...s, text: conv(s.text) }));
 
   if (myGen !== _renderGen) return;
 
@@ -267,13 +254,12 @@ async function renderResults() {
   const display      = showOnlyLong ? tagged.filter(s => isLongSub(s)) : tagged;
 
   document.getElementById('subtitle-count').textContent = tagged.length;
-
   const list = document.getElementById('preview-list');
   list.innerHTML = '';
 
   display.slice(0, 200).forEach((s, visIdx) => {
-    const srcIdx = s._srcIdx;
-    const long   = isLongSub(s);
+    const flatIdx = s._flatIdx;
+    const long    = isLongSub(s);
 
     const row = document.createElement('div');
     row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start transition-colors'
@@ -283,32 +269,39 @@ async function renderResults() {
     numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
     numSpan.textContent = visIdx + 1;
 
+    // File label for batch mode
     const right = document.createElement('div');
     right.className = 'flex-1 min-w-0 flex flex-col gap-1';
+    if (isBatch) {
+      const fileLabel = document.createElement('span');
+      fileLabel.className = 'text-xs text-violet-400/70 font-mono mb-0.5';
+      fileLabel.textContent = parsedFiles[parsedSubs[flatIdx]._fileIdx]?.name || '';
+      right.appendChild(fileLabel);
+    }
 
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input'; ta.rows = 1; ta.spellcheck = false;
     ta.value = s.text;
     ta.addEventListener('input', function() {
       this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';
-      parsedSubs[srcIdx].text = this.value;
+      // Write back to the correct file
+      const orig = parsedSubs[flatIdx];
+      parsedFiles[orig._fileIdx].subs[orig._srcIdx].text = this.value;
+      parsedSubs[flatIdx].text = this.value;
     });
 
     const tsRow = document.createElement('div');
     tsRow.className = 'flex items-center gap-2 flex-wrap';
-
     const durBadge = document.createElement('span');
     durBadge.className = 'duration-badge' + (long ? ' long' : '');
 
-    let curStart = s.start;
-    let curEnd   = s.end;
-    let durInput = null;
+    let curStart = s.start, curEnd = s.end, durInput = null;
 
     function updateDurBadge() {
       const d = curEnd - curStart;
       durBadge.textContent = d.toFixed(2) + 's';
-      const threshold = parseFloat(document.getElementById('long-sub-threshold')?.value) || 8;
-      const nowLong = d > threshold;
+      const thr = parseFloat(document.getElementById('long-sub-threshold')?.value) || 8;
+      const nowLong = d > thr;
       durBadge.className = 'duration-badge' + (nowLong ? ' long' : '');
       row.classList.toggle('long-sub-row', nowLong);
       row.classList.toggle('hover:bg-slate-800/30', !nowLong);
@@ -334,24 +327,29 @@ async function renderResults() {
       return inp;
     }
 
-    const startInp = makeTimeInput(() => curStart, v => { curStart = v; parsedSubs[srcIdx].start = v; });
-    const endInp   = makeTimeInput(() => curEnd,   v => { curEnd   = v; parsedSubs[srcIdx].end   = v; });
+    function writeBack(field, val) {
+      const orig = parsedSubs[flatIdx];
+      parsedFiles[orig._fileIdx].subs[orig._srcIdx][field] = val;
+      parsedSubs[flatIdx][field] = val;
+    }
+
+    const startInp = makeTimeInput(() => curStart, v => { curStart = v; writeBack('start', v); });
+    const endInp   = makeTimeInput(() => curEnd,   v => { curEnd   = v; writeBack('end',   v); });
 
     durInput = document.createElement('input');
     durInput.type = 'number'; durInput.className = 'dur-input';
     durInput.min = '0'; durInput.step = '0.1';
     durInput.value = (curEnd - curStart).toFixed(2);
-    durInput.title = 'Duration — sets end = start + duration';
     durInput.addEventListener('focus', function() { this.value = (curEnd-curStart).toFixed(2); });
     durInput.addEventListener('input', function() {
       const d = parseFloat(this.value);
-      if (!isNaN(d) && d >= 0) { curEnd = curStart+d; parsedSubs[srcIdx].end=curEnd; endInp.value=toSRTTime(curEnd); updateDurBadge(); }
+      if (!isNaN(d) && d >= 0) { curEnd = curStart+d; writeBack('end', curEnd); endInp.value=toSRTTime(curEnd); updateDurBadge(); }
     });
     durInput.addEventListener('blur', function() { this.value = (curEnd-curStart).toFixed(2); });
     durInput.addEventListener('keydown', e => { if(e.key==='Enter') durInput.blur(); });
 
-    const arrow  = document.createElement('span'); arrow.className = 'text-xs text-slate-600 select-none'; arrow.textContent = '→';
-    const sLabel = document.createElement('span'); sLabel.className = 'text-xs text-slate-600 select-none'; sLabel.textContent = 's';
+    const arrow  = document.createElement('span'); arrow.className='text-xs text-slate-600 select-none'; arrow.textContent='→';
+    const sLabel = document.createElement('span'); sLabel.className='text-xs text-slate-600 select-none'; sLabel.textContent='s';
 
     tsRow.appendChild(startInp); tsRow.appendChild(arrow); tsRow.appendChild(endInp);
     tsRow.appendChild(durBadge); tsRow.appendChild(durInput); tsRow.appendChild(sLabel);
@@ -361,8 +359,8 @@ async function renderResults() {
     requestAnimationFrame(() => { ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
   });
 
-  const panel = document.getElementById('results-panel');
-  panel.classList.remove('hidden'); panel.classList.add('flex');
+  document.getElementById('results-panel').classList.remove('hidden');
+  document.getElementById('results-panel').classList.add('flex');
 }
 
 function applyToolsTagged(tagged) {
@@ -372,15 +370,8 @@ function applyToolsTagged(tagged) {
   const doMerge     = document.getElementById('toggle-merge').checked;
 
   let result = tagged.map(s => ({...s, start:Math.max(0,s.start+offset), end:Math.max(0,s.end+offset)}));
-  result = result.map(s => {
-    let text = s.text;
-    for(const r of replaceRules){ if(r.find) text=text.split(r.find).join(r.rep); }
-    return {...s, text};
-  });
-  if (doParticles) {
-    const re = buildParticleRegex();
-    if (re) result = result.map(s => ({...s, text:s.text.replace(re,'').trim()}));
-  }
+  result = result.map(s => { let text=s.text; for(const r of replaceRules){ if(r.find) text=text.split(r.find).join(r.rep); } return {...s,text}; });
+  if (doParticles) { const re=buildParticleRegex(); if(re) result=result.map(s=>({...s,text:s.text.replace(re,'').trim()})); }
   if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
   if (doMerge) {
     const merged = [];
@@ -401,32 +392,82 @@ document.getElementById('time-offset').addEventListener('input', () => { if(pars
 const fnInput = document.getElementById('filename-input');
 if(fnInput) fnInput.addEventListener('input', function(){ currentFileName=this.value.trim()||'subtitles'; autoResizeFilenameInput(this); });
 
-// ---- Export ----
-function getExportSubs() {
+// ==========================================
+// Export
+// Single file → download directly
+// Batch       → JSZip, one file per entry
+// ==========================================
+function buildProcessedFiles(ext) {
   const zhMode = document.getElementById('zh-convert-select')?.value || 'none';
-  let tagged = parsedSubs.map((s,i) => ({...s,_srcIdx:i}));
-  tagged = applyToolsTagged(tagged);
-  if (zhMode !== 'none') {
-    const converter = getZhConverter(zhMode);
-    if (converter) tagged = tagged.map(s => ({...s, text: converter(s.text)}));
-  }
-  return tagged;
+  const conv   = (zhMode !== 'none') ? getZhConverter(zhMode) : null;
+  const offset      = parseFloat(document.getElementById('time-offset').value) || 0;
+  const doParticles = document.getElementById('toggle-particles').checked;
+  const doEmpty     = document.getElementById('toggle-empty').checked;
+  const doMerge     = document.getElementById('toggle-merge').checked;
+
+  return parsedFiles.map(({ name, subs }) => {
+    let result = subs.map(s => ({
+      ...s,
+      start: Math.max(0, s.start + offset),
+      end:   Math.max(0, s.end   + offset),
+    }));
+    result = result.map(s => { let text=s.text; for(const r of replaceRules){ if(r.find) text=text.split(r.find).join(r.rep); } return {...s,text}; });
+    if (doParticles) { const re=buildParticleRegex(); if(re) result=result.map(s=>({...s,text:s.text.replace(re,'').trim()})); }
+    if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
+    if (doMerge) {
+      const merged = [];
+      for(const s of result) {
+        if(merged.length && merged[merged.length-1].text===s.text) merged[merged.length-1].end=s.end;
+        else merged.push({...s});
+      }
+      result = merged;
+    }
+    if (conv) result = result.map(s => ({...s, text: conv(s.text)}));
+
+    let content;
+    if (ext === 'srt')   content = buildSRT(result);
+    else if (ext === 'txt') content = buildTXT(result);
+    else                 content = buildPlain(result);
+
+    return { name: `${name}.${ext}`, content: '\uFEFF' + content };
+  });
 }
 
-window.exportFile = function(type) {
-  const p = getExportSubs();
-  const map = { srt:[buildSRT(p),'srt'], txt:[buildTXT(p),'txt'], plain:[buildPlain(p),'txt'] };
-  const [content,ext] = map[type];
-  const blob = new Blob(['\uFEFF'+content],{type:'text/plain;charset=utf-8'});
+function downloadBlob(content, filename) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href=url; a.download=`${currentFileName}.${ext}`; a.click();
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+window.exportFile = async function(type) {
+  const extMap = { srt: 'srt', txt: 'txt', plain: 'txt' };
+  const ext    = extMap[type];
+  const files  = buildProcessedFiles(ext);
+
+  if (!isBatch) {
+    // Single file: direct download
+    downloadBlob(files[0].content, files[0].name);
+    return;
+  }
+
+  // Batch: pack into ZIP
+  const zip = new JSZip();
+  for (const f of files) zip.file(f.name, f.content);
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const zipName = parsedFiles[0].name + `_batch_${parsedFiles.length}.zip`;
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = zipName; a.click();
   URL.revokeObjectURL(url);
 };
 
 window.copyAllSubs = function() {
-  const p = getExportSubs();
-  navigator.clipboard.writeText(buildPlain(p)).then(() => {
+  // Copy all files' plain text separated by blank lines
+  const files = buildProcessedFiles('txt');
+  const allText = files.map(f => f.content.replace(/^\uFEFF/, '')).join('\n\n---\n\n');
+  navigator.clipboard.writeText(allText).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
     if(!btn) return;
     const orig = btn.innerHTML;
@@ -436,7 +477,7 @@ window.copyAllSubs = function() {
 };
 
 window.clearAll = function() {
-  parsedSubs = [];
+  parsedFiles = []; parsedSubs = []; isBatch = false;
   document.getElementById('results-panel').classList.add('hidden');
   document.getElementById('tools-panel').classList.add('hidden');
   document.getElementById('batch-bar').classList.add('hidden');
