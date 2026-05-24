@@ -119,6 +119,7 @@ function loadToggleState() {
 }
 
 // ---- Replace Rules ----
+// NOTE: replaceRules must be declared here (ui.js) before tools.js functions that reference it
 let replaceRules = [];
 function saveReplaceRules() { LS.set('replaceRules', replaceRules.map(r => ({ find: r.find, rep: r.rep }))); }
 function addReplaceRow(find = '', rep = '') {
@@ -159,6 +160,7 @@ fileInput.addEventListener('change', e => { if(e.target.files&&e.target.files.le
 
 async function handleFile(file) {
   document.getElementById('error-msg').classList.add('hidden');
+  // --- Step 1: Parse file ---
   try {
     const raw  = await file.text();
     const name = file.name.toLowerCase();
@@ -173,15 +175,23 @@ async function handleFile(file) {
     } else {
       const json = JSON.parse(raw);
       parsedSubs = parseCapcut(json);
-      if (!parsedSubs.length) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles.');
+      if (!parsedSubs.length) throw new Error('No subtitle tracks found.');
       currentFileName = file.name.replace(/\.json$/i,'');
     }
-    const fnInput = document.getElementById('filename-input');
-    if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
-    document.getElementById('tools-panel').classList.remove('hidden');
-    await renderResults();   // ← must await so results-panel shows correctly
   } catch(err) {
     showError(t('errorBadFile') + (err.message ? ' ('+err.message+')' : ''));
+    return;
+  }
+  // --- Step 2: Update filename UI ---
+  const fnInput = document.getElementById('filename-input');
+  if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
+  document.getElementById('tools-panel').classList.remove('hidden');
+  // --- Step 3: Render (separate try so parse errors don't hide render errors) ---
+  try {
+    await renderResults();
+  } catch(err) {
+    console.error('renderResults failed:', err);
+    showError('Render error: ' + err.message);
   }
 }
 
@@ -198,7 +208,7 @@ function autoResizeFilenameInput(el) {
 }
 
 // ==========================================
-// renderResults  (async — awaits zh conversion only)
+// renderResults
 // ==========================================
 async function renderResults() {
   const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
@@ -233,7 +243,6 @@ async function renderResults() {
     const right = document.createElement('div');
     right.className = 'flex-1 min-w-0 flex flex-col gap-1';
 
-    // Subtitle text textarea
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input'; ta.rows = 1; ta.spellcheck = false;
     ta.value = s.text;
@@ -242,7 +251,6 @@ async function renderResults() {
       parsedSubs[srcIdx].text = this.value;
     });
 
-    // Timestamp + duration row
     const tsRow = document.createElement('div');
     tsRow.className = 'flex items-center gap-2 flex-wrap';
 
@@ -251,20 +259,19 @@ async function renderResults() {
 
     let curStart = s.start;
     let curEnd   = s.end;
-
-    // IMPORTANT: declare durInput with let BEFORE updateDurBadge so it is in scope
-    let durInput = null;
+    let durInput = null;  // declared BEFORE updateDurBadge to avoid TDZ error
 
     function updateDurBadge() {
       const d = curEnd - curStart;
       durBadge.textContent = d.toFixed(2) + 's';
-      const nowLong = d > (parseFloat(document.getElementById('long-sub-threshold')?.value) || 8);
+      const threshold = parseFloat(document.getElementById('long-sub-threshold')?.value) || 8;
+      const nowLong = d > threshold;
       durBadge.className = 'duration-badge' + (nowLong ? ' long' : '');
       row.classList.toggle('long-sub-row', nowLong);
       row.classList.toggle('hover:bg-slate-800/30', !nowLong);
       if (durInput) durInput.value = d.toFixed(2);
     }
-    updateDurBadge();  // safe: durInput is null here but guarded with if(durInput)
+    updateDurBadge();
 
     function makeTimeInput(getSec, onCommit) {
       const inp = document.createElement('input');
@@ -293,13 +300,13 @@ async function renderResults() {
       v  => { curEnd = v; parsedSubs[srcIdx].end = v; }
     );
 
-    // Editable duration — assigned to the let declared above
+    // Assign to the let declared above
     durInput = document.createElement('input');
     durInput.type = 'number'; durInput.className = 'dur-input';
     durInput.min = '0'; durInput.step = '0.1';
     durInput.value = (curEnd - curStart).toFixed(2);
     durInput.title = 'Duration — sets end = start + duration';
-    durInput.addEventListener('focus', function() { this.value = (curEnd - curStart).toFixed(2); });
+    durInput.addEventListener('focus', function() { this.value = (curEnd-curStart).toFixed(2); });
     durInput.addEventListener('input', function() {
       const d = parseFloat(this.value);
       if (!isNaN(d) && d >= 0) {
@@ -319,7 +326,6 @@ async function renderResults() {
 
     tsRow.appendChild(startInp); tsRow.appendChild(arrow); tsRow.appendChild(endInp);
     tsRow.appendChild(durBadge); tsRow.appendChild(durInput); tsRow.appendChild(sLabel);
-
     right.appendChild(ta); right.appendChild(tsRow);
     row.appendChild(numSpan); row.appendChild(right);
     list.appendChild(row);
@@ -342,17 +348,20 @@ function applyToolsTagged(tagged) {
   result = result.map(s => {
     let text = s.text;
     for(const r of replaceRules){ if(r.find) text=text.split(r.find).join(r.rep); }
-    return {...s,text};
+    return {...s, text};
   });
-  if (doParticles){ const re=buildParticleRegex(); if(re) result=result.map(s=>({...s,text:s.text.replace(re,'').trim()})); }
-  if (doEmpty) result=result.filter(s=>s.text.trim().length>0);
-  if (doMerge){
-    const merged=[];
-    for(const s of result){
-      if(merged.length&&merged[merged.length-1].text===s.text) merged[merged.length-1].end=s.end;
+  if (doParticles) {
+    const re = buildParticleRegex();
+    if (re) result = result.map(s => ({...s, text: s.text.replace(re,'').trim()}));
+  }
+  if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
+  if (doMerge) {
+    const merged = [];
+    for(const s of result) {
+      if(merged.length && merged[merged.length-1].text === s.text) merged[merged.length-1].end = s.end;
       else merged.push({...s});
     }
-    result=merged;
+    result = merged;
   }
   return result;
 }
@@ -390,20 +399,20 @@ window.copyAllSubs = async function() {
   navigator.clipboard.writeText(buildPlain(p)).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
     if(!btn) return;
-    const orig=btn.innerHTML;
-    btn.textContent=t('copied'); btn.classList.add('bg-green-600'); btn.classList.remove('bg-slate-700');
+    const orig = btn.innerHTML;
+    btn.textContent = t('copied'); btn.classList.add('bg-green-600'); btn.classList.remove('bg-slate-700');
     setTimeout(()=>{ btn.innerHTML=orig; btn.classList.remove('bg-green-600'); btn.classList.add('bg-slate-700'); },1800);
   });
 };
 
 window.clearAll = function() {
-  parsedSubs=[];
+  parsedSubs = [];
   document.getElementById('results-panel').classList.add('hidden');
   document.getElementById('tools-panel').classList.add('hidden');
-  document.getElementById('preview-list').innerHTML='';
-  fileInput.value='';
-  const fn=document.getElementById('filename-input');
-  if(fn){fn.value='';autoResizeFilenameInput(fn);}
+  document.getElementById('preview-list').innerHTML = '';
+  fileInput.value = '';
+  const fn = document.getElementById('filename-input');
+  if(fn){ fn.value=''; autoResizeFilenameInput(fn); }
 };
 
 function showError(msg){ document.getElementById('error-text').textContent=msg; document.getElementById('error-msg').classList.remove('hidden'); }
