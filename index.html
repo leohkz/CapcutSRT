@@ -6,7 +6,8 @@
 <title>CapcutSRT - Export Subtitles from CapCut</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='20' width='80' height='60' rx='8' fill='none' stroke='%238B5CF6' stroke-width='8'/%3E%3Cpath d='M25 55 H75 M25 68 H55' stroke='%238B5CF6' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+<!-- opencc-js loaded async so it never blocks page interactivity -->
+<script async src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js" id="opencc-script"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
 body {
@@ -302,6 +303,7 @@ const i18n = {
     ccS2T: '简 → 繁',
     ccLoading: 'Loading converter…',
     ccReady: 'Converter ready',
+    ccNotReady: 'Converter not loaded yet, please retry in a moment.',
     textReplace: 'Text replacement rules',
     addRule: 'Add rule',
     findPlaceholder: 'Find…',
@@ -337,7 +339,7 @@ const i18n = {
     mergeSameSub: '合併前後相同的字幕句',
     longLine: '醒目長對白行',
     longLineSub: '超過 X 秒的字幕用紅色標記',
-    longLineSuffix: '秒閾倦値',
+    longLineSuffix: '秒閾值',
     timeOffset: '時間偏移',
     seconds: '秒（正數或負數）',
     chineseConvert: '中文字體轉換',
@@ -346,6 +348,7 @@ const i18n = {
     ccS2T: '简 → 繁',
     ccLoading: '轉換器載入中…',
     ccReady: '轉換器就緒',
+    ccNotReady: '轉換器尚未載入，請稍後再試。',
     textReplace: '文字取代規則',
     addRule: '新增規則',
     findPlaceholder: '尋找…',
@@ -381,7 +384,7 @@ const i18n = {
     mergeSameSub: '合并前后相同的字幕句',
     longLine: '标记过长对白行',
     longLineSub: '超过 X 秒的字幕用红色标记',
-    longLineSuffix: '秒阈値',
+    longLineSuffix: '秒阈值',
     timeOffset: '时间偏移',
     seconds: '秒（正数或负数）',
     chineseConvert: '中文字体转换',
@@ -390,6 +393,7 @@ const i18n = {
     ccS2T: '简 → 繁',
     ccLoading: '转换器加载中…',
     ccReady: '转换器就绪',
+    ccNotReady: '转换器尚未加载，请稍后再试。',
     textReplace: '文字替换规则',
     addRule: '添加规则',
     findPlaceholder: '查找…',
@@ -458,10 +462,17 @@ function renderOsGuide() {
 
 // ==========================================
 // OpenCC Chinese Conversion
+// Locale codes (opencc-js): tw=繁體, cn=簡體
+// t2s: from:'tw', to:'cn'
+// s2t: from:'cn', to:'tw'
 // ==========================================
-let ccMode = 'off';  // 'off' | 't2s' | 's2t'
+let ccMode = 'off';
 let ccConverter = null;
-let ccConverterMode = null; // tracks which converter is loaded
+let ccConverterMode = null;
+
+function isOpenCCReady() {
+  return typeof window.OpenCC !== 'undefined' && typeof window.OpenCC.Converter === 'function';
+}
 
 function setCCMode(mode) {
   ccMode = mode;
@@ -469,26 +480,34 @@ function setCCMode(mode) {
     const btn = document.getElementById('cc-'+m);
     if(btn) btn.classList.toggle('active', m === mode);
   });
+  const statusEl = document.getElementById('cc-status');
   if (mode === 'off') {
-    document.getElementById('cc-status').textContent = '';
+    statusEl.textContent = '';
     if(parsedSubs.length) renderResults();
     return;
   }
-  // lazy-load converter
+  if (!isOpenCCReady()) {
+    statusEl.textContent = t('ccNotReady');
+    // retry once after 1.5s in case CDN just finished loading
+    setTimeout(() => { if(ccMode === mode) setCCMode(mode); }, 1500);
+    return;
+  }
   if (ccConverterMode === mode && ccConverter) {
+    statusEl.textContent = t('ccReady');
     if(parsedSubs.length) renderResults();
     return;
   }
-  document.getElementById('cc-status').textContent = t('ccLoading');
+  statusEl.textContent = t('ccLoading');
   try {
-    const from = mode === 't2s' ? 'hk' : 'cn';
-    const to   = mode === 't2s' ? 'cn' : 'hk';
+    // FIXED locale codes: 'tw' = Traditional, 'cn' = Simplified
+    const from = mode === 't2s' ? 'tw' : 'cn';
+    const to   = mode === 't2s' ? 'cn' : 'tw';
     ccConverter = OpenCC.Converter({ from, to });
     ccConverterMode = mode;
-    document.getElementById('cc-status').textContent = t('ccReady');
+    statusEl.textContent = t('ccReady');
     if(parsedSubs.length) renderResults();
   } catch(e) {
-    document.getElementById('cc-status').textContent = 'Error: ' + e.message;
+    statusEl.textContent = 'Error: ' + e.message;
   }
 }
 window.setCCMode = setCCMode;
@@ -687,7 +706,6 @@ function renderResults() {
   document.getElementById('subtitle-count').textContent = processed.length;
   document.getElementById('file-name-display').textContent = currentFileName;
 
-  // long-line badge
   const longCount = doLongLine ? processed.filter(s => (s.end - s.start) > longSec).length : 0;
   const badge = document.getElementById('long-count-badge');
   if (doLongLine && longCount > 0) {
