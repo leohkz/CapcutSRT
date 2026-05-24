@@ -40,8 +40,6 @@ body {
 .blob { position:absolute; border-radius:50%; filter:blur(80px); opacity:0.35; z-index:-1; }
 .lang-btn { transition: all 0.2s; }
 .lang-btn.active { background: rgba(139,92,246,0.3); color: #c4b5fd; border-color: rgba(139,92,246,0.5); }
-.subtitle-row { animation: slideIn 0.3s ease-out forwards; opacity:0; transform:translateX(-10px); }
-@keyframes slideIn { to { opacity:1; transform:translateX(0); } }
 .code-block {
   background: rgba(15,23,42,0.8);
   border: 1px solid rgba(139,92,246,0.2);
@@ -69,15 +67,49 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
 ::-webkit-scrollbar-track { background:rgba(15,23,42,0.5); border-radius:3px; }
 ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background:#64748b; }
+/* Virtual scroll container */
+#vs-container { position:relative; overflow-y:auto; max-height:55vh; }
+#vs-spacer { width:100%; pointer-events:none; }
+#vs-items { position:absolute; top:0; left:0; right:0; }
+/* Inline edit */
+.sub-text-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+  width: 100%;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.5;
+  padding: 0;
+}
+.sub-text-input:focus {
+  background: rgba(139,92,246,0.08);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+/* Long duration warning */
+.long-dur { border-left: 3px solid #f97316 !important; }
+.long-dur .dur-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #f97316;
+  font-weight: 600;
+  margin-left: 6px;
+}
 </style>
 </head>
 <body class="flex flex-col items-center p-4 md:p-8 relative min-h-screen">
 
 <!-- BG Blobs -->
 <div class="fixed inset-0 overflow-hidden pointer-events-none">
-  <div class="blob bg-violet-600 w-96 h-96 top-0 left-1/4 mix-blend-screen animate-pulse"></div>
-  <div class="blob bg-purple-700 w-96 h-96 top-1/3 right-1/4 mix-blend-screen animate-pulse" style="animation-delay:2s"></div>
-  <div class="blob bg-fuchsia-600 w-80 h-80 bottom-0 left-1/3 mix-blend-screen animate-pulse" style="animation-delay:4s"></div>
+  <div class="blob bg-violet-600 w-96 h-96 top-0 left-1/4 mix-blend-screen animate-pulse" style="border-radius:50%;filter:blur(80px);opacity:.35;position:absolute"></div>
+  <div class="blob bg-purple-700 w-96 h-96 top-1/3 right-1/4 mix-blend-screen animate-pulse" style="animation-delay:2s;border-radius:50%;filter:blur(80px);opacity:.35;position:absolute"></div>
+  <div class="blob bg-fuchsia-600 w-80 h-80 bottom-0 left-1/3 mix-blend-screen animate-pulse" style="animation-delay:4s;border-radius:50%;filter:blur(80px);opacity:.35;position:absolute"></div>
 </div>
 
 <!-- Lang Switcher -->
@@ -171,6 +203,17 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
             <span class="text-xs text-slate-400" data-i18n="seconds"></span>
           </div>
         </div>
+        <!-- Long duration detector -->
+        <div>
+          <p class="text-sm text-white mb-1" data-i18n="longDurLabel"></p>
+          <p class="text-xs text-slate-500 mb-2" data-i18n="longDurSub"></p>
+          <div class="flex items-center gap-2">
+            <input type="number" id="long-dur-threshold" value="8" min="1" step="0.5"
+              class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-orange-500">
+            <span class="text-xs text-slate-400" data-i18n="secondsShort"></span>
+            <span id="long-dur-count" class="text-xs text-orange-400 font-semibold ml-2"></span>
+          </div>
+        </div>
       </div>
       <!-- Right: Replacements -->
       <div>
@@ -218,9 +261,13 @@ input:checked + .toggle-slider:before { transform:translateX(18px); }
     <div class="glass-panel rounded-xl overflow-hidden">
       <div class="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
         <span class="text-xs font-medium text-slate-400" data-i18n="preview"></span>
-        <span class="text-xs text-slate-600" data-i18n="previewNote"></span>
+        <span class="text-xs text-slate-500" data-i18n="editHint"></span>
       </div>
-      <div id="preview-list" class="divide-y divide-slate-700/30 max-h-[50vh] overflow-y-auto"></div>
+      <!-- Virtual scroll container -->
+      <div id="vs-container" class="divide-y divide-slate-700/30">
+        <div id="vs-spacer"></div>
+        <div id="vs-items"></div>
+      </div>
     </div>
   </div>
 
@@ -262,6 +309,9 @@ const i18n = {
     mergeSameSub: 'Combine back-to-back identical subtitles',
     timeOffset: 'Time offset',
     seconds: 'seconds  (positive or negative)',
+    longDurLabel: 'Long duration detector',
+    longDurSub: 'Highlight subtitles longer than X seconds (orange border)',
+    secondsShort: 'sec',
     textReplace: 'Text replacement rules',
     addRule: 'Add rule',
     findPlaceholder: 'Find…',
@@ -273,10 +323,11 @@ const i18n = {
     copyAll: 'Copy all',
     clearAll: 'Clear',
     preview: 'Preview',
-    previewNote: 'Showing up to 200 lines',
+    editHint: 'Click text to edit',
     errorTitle: 'Parse Error',
     errorBadFile: 'Could not parse this file.',
     copied: 'Copied!',
+    longDurWarn: (n) => `⚠ ${n} line${n>1?'s':''} exceed threshold`,
   },
   'zh-TW': {
     tagline: 'CapCut 字幕匯出工具',
@@ -296,6 +347,9 @@ const i18n = {
     mergeSameSub: '合併前後相同的字幕句',
     timeOffset: '時間偏移',
     seconds: '秒（正數或負數）',
+    longDurLabel: '長時間字幕偵測',
+    longDurSub: '高亮超過 X 秒的字幕（橙色邊框）',
+    secondsShort: '秒',
     textReplace: '文字取代規則',
     addRule: '新增規則',
     findPlaceholder: '尋找…',
@@ -307,10 +361,11 @@ const i18n = {
     copyAll: '複製全部',
     clearAll: '清除',
     preview: '預覽',
-    previewNote: '最多顯示 200 行',
+    editHint: '點擊文字即可編輯',
     errorTitle: '解析錯誤',
     errorBadFile: '無法解析此檔案。',
     copied: '已複製！',
+    longDurWarn: (n) => `⚠ ${n} 條字幕超過閾值`,
   },
   'zh-CN': {
     tagline: 'CapCut 字幕导出工具',
@@ -330,6 +385,9 @@ const i18n = {
     mergeSameSub: '合并前后相同的字幕句',
     timeOffset: '时间偏移',
     seconds: '秒（正数或负数）',
+    longDurLabel: '长时间字幕检测',
+    longDurSub: '高亮超过 X 秒的字幕（橙色边框）',
+    secondsShort: '秒',
     textReplace: '文字替换规则',
     addRule: '添加规则',
     findPlaceholder: '查找…',
@@ -341,15 +399,16 @@ const i18n = {
     copyAll: '复制全部',
     clearAll: '清除',
     preview: '预览',
-    previewNote: '最多显示 200 行',
+    editHint: '点击文字即可编辑',
     errorTitle: '解析错误',
     errorBadFile: '无法解析此文件。',
     copied: '已复制！',
+    longDurWarn: (n) => `⚠ ${n} 条字幕超过阈值`,
   }
 };
 
 let currentLang = 'en';
-function t(k) { return (i18n[currentLang]||i18n.en)[k]||k; }
+function t(k) { const v=(i18n[currentLang]||i18n.en)[k]; return v!==undefined?v:((i18n.en)[k]||k); }
 function applyLang(lang) {
   currentLang = lang;
   document.documentElement.lang = lang;
@@ -358,6 +417,7 @@ function applyLang(lang) {
   document.querySelectorAll('.replace-find').forEach(i => i.placeholder = t('findPlaceholder'));
   document.querySelectorAll('.replace-with').forEach(i => i.placeholder = t('replacePlaceholder'));
   renderOsGuide();
+  if (processedSubs.length) updateLongDurCount();
 }
 document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => applyLang(b.dataset.lang)));
 
@@ -386,7 +446,6 @@ function renderOsGuide() {
   document.getElementById('os-path').textContent = osPaths[os];
 }
 
-// Auto-detect language
 (function(){
   const nav = navigator.language||'en';
   if (nav.startsWith('zh-TW')||nav.startsWith('zh-HK')||nav==='zh-Hant') applyLang('zh-TW');
@@ -411,14 +470,14 @@ function addReplaceRow(find='', rep='') {
     <button onclick="removeReplaceRow('${id}')" class="text-slate-600 hover:text-red-400 transition-colors shrink-0">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
     </button>`;
-  row.querySelector('.replace-find').addEventListener('input', e => { const r=replaceRules.find(x=>x.id===id); if(r){r.find=e.target.value; if(parsedSubs.length) renderResults();} });
-  row.querySelector('.replace-with').addEventListener('input', e => { const r=replaceRules.find(x=>x.id===id); if(r){r.rep=e.target.value; if(parsedSubs.length) renderResults();} });
+  row.querySelector('.replace-find').addEventListener('input', e => { const r=replaceRules.find(x=>x.id===id); if(r){r.find=e.target.value; if(parsedSubs.length) scheduleRender();} });
+  row.querySelector('.replace-with').addEventListener('input', e => { const r=replaceRules.find(x=>x.id===id); if(r){r.rep=e.target.value; if(parsedSubs.length) scheduleRender();} });
   document.getElementById('replace-list').appendChild(row);
 }
 window.removeReplaceRow = function(id) {
   replaceRules = replaceRules.filter(r=>r.id!==id);
   document.querySelector(`.replace-row[data-id="${id}"]`)?.remove();
-  if(parsedSubs.length) renderResults();
+  if(parsedSubs.length) scheduleRender();
 };
 document.getElementById('add-replace-btn').addEventListener('click', ()=>addReplaceRow());
 
@@ -475,14 +534,12 @@ function parseCapcut(data) {
   return subs.sort((a, b) => a.start - b.start);
 }
 
-// NEW: SRT parser
 function parseSRT(raw) {
   const subs = [];
   const blocks = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split(/\n\n+/);
   for (const block of blocks) {
     const lines = block.trim().split('\n');
     if (lines.length < 2) continue;
-    // find timestamp line (contains -->)
     const tIdx = lines.findIndex(l => /-->/.test(l));
     if (tIdx < 0) continue;
     const parts = lines[tIdx].split('-->');
@@ -496,7 +553,6 @@ function parseSRT(raw) {
 }
 
 function srtTimeToSec(s) {
-  // supports both 00:00:00,000 and 00:00:00.000
   const m = s.match(/(\d+):(\d+):(\d+)[,\.](\d+)/);
   if (!m) return 0;
   return +m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, '0') / 1000;
@@ -539,10 +595,101 @@ function buildTXT(subs) { return subs.map(s=>`[${toSRTTime(s.start)} --> ${toSRT
 function buildPlain(subs) { return subs.map(s=>s.text).join('\n'); }
 
 // ==========================================
+// Virtual Scroll
+// ==========================================
+const ROW_HEIGHT = 60; // px estimate per row
+let processedSubs = [];
+let vsRaf = null;
+
+const vsContainer = document.getElementById('vs-container');
+const vsSpacer    = document.getElementById('vs-spacer');
+const vsItems     = document.getElementById('vs-items');
+
+function getLongThreshold() {
+  return parseFloat(document.getElementById('long-dur-threshold').value) || 8;
+}
+
+function updateLongDurCount() {
+  const thr = getLongThreshold();
+  const n = processedSubs.filter(s => (s.end - s.start) > thr).length;
+  const el = document.getElementById('long-dur-count');
+  const warnFn = (i18n[currentLang]||i18n.en).longDurWarn || i18n.en.longDurWarn;
+  el.textContent = n > 0 ? warnFn(n) : '';
+}
+
+function renderVS() {
+  if (!processedSubs.length) return;
+  const total = processedSubs.length;
+  const thr   = getLongThreshold();
+
+  // Measure actual container height
+  const containerH = vsContainer.clientHeight || 400;
+  const scrollTop  = vsContainer.scrollTop;
+
+  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
+  const endIdx   = Math.min(total - 1, Math.ceil((scrollTop + containerH) / ROW_HEIGHT) + 5);
+
+  vsSpacer.style.height = (total * ROW_HEIGHT) + 'px';
+  vsItems.style.top = (startIdx * ROW_HEIGHT) + 'px';
+  vsItems.innerHTML = '';
+
+  for (let i = startIdx; i <= endIdx; i++) {
+    const s = processedSubs[i];
+    const dur = s.end - s.start;
+    const isLong = dur > thr;
+    const row = document.createElement('div');
+    row.className = 'px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors border-l-4 border-transparent' + (isLong ? ' long-dur' : '');
+    row.style.minHeight = ROW_HEIGHT + 'px';
+    row.style.boxSizing = 'border-box';
+
+    const badge = isLong
+      ? `<span class="dur-badge"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${dur.toFixed(1)}s</span>`
+      : '';
+
+    row.innerHTML = `
+      <span class="text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none">${i+1}</span>
+      <div class="flex-1 min-w-0">
+        <textarea class="sub-text-input" rows="1" data-idx="${i}" spellcheck="false">${escHtml(s.text)}</textarea>
+        <p class="text-xs text-slate-500 mt-0.5 font-mono flex items-center">${toSRTTime(s.start)} → ${toSRTTime(s.end)}${badge}</p>
+      </div>`;
+
+    // Auto-resize textarea
+    const ta = row.querySelector('textarea');
+    ta.style.height = 'auto';
+    ta.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = this.scrollHeight + 'px';
+      // write-back to processedSubs AND parsedSubs
+      const idx = parseInt(this.dataset.idx);
+      const newText = this.value;
+      processedSubs[idx].text = newText;
+      // find matching original and update
+      const orig = parsedSubs.find(x => x._id === processedSubs[idx]._id);
+      if (orig) orig.text = newText;
+    });
+    ta.addEventListener('focus', function() { this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'; });
+
+    vsItems.appendChild(row);
+  }
+  updateLongDurCount();
+}
+
+vsContainer.addEventListener('scroll', () => {
+  if (vsRaf) cancelAnimationFrame(vsRaf);
+  vsRaf = requestAnimationFrame(renderVS);
+});
+
+// ==========================================
 // UI Logic
 // ==========================================
 let parsedSubs = [];
 let currentFileName = 'subtitles';
+let renderTimer = null;
+
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderResults, 80);
+}
 
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
@@ -561,17 +708,17 @@ async function handleFile(file) {
     const raw = await file.text();
     const isSRT = file.name.toLowerCase().endsWith('.srt');
     if (isSRT) {
-      // --- SRT branch ---
       parsedSubs = parseSRT(raw);
       if (parsedSubs.length === 0) throw new Error('No valid SRT blocks found.');
       currentFileName = file.name.replace(/\.srt$/i, '');
     } else {
-      // --- JSON / CapCut branch ---
       const json = JSON.parse(raw);
       parsedSubs = parseCapcut(json);
       if (parsedSubs.length === 0) throw new Error('No subtitle tracks found. Make sure the file has auto-transcribed subtitles.');
       currentFileName = file.name.replace(/\.json$/i, '');
     }
+    // assign stable IDs for write-back
+    parsedSubs.forEach((s, i) => s._id = i);
     document.getElementById('tools-panel').classList.remove('hidden');
     renderResults();
   } catch(err) {
@@ -580,33 +727,25 @@ async function handleFile(file) {
 }
 
 function renderResults() {
-  const processed = applyTools(parsedSubs);
-  document.getElementById('subtitle-count').textContent = processed.length;
+  processedSubs = applyTools(parsedSubs);
+  // assign _id from source for write-back
+  processedSubs.forEach((s, i) => { if (s._id === undefined) s._id = i; });
+  document.getElementById('subtitle-count').textContent = processedSubs.length;
   document.getElementById('file-name-display').textContent = currentFileName;
-  const list = document.getElementById('preview-list');
-  list.innerHTML = '';
-  processed.slice(0,200).forEach((s,i) => {
-    const row = document.createElement('div');
-    row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start hover:bg-slate-800/30 transition-colors';
-    row.innerHTML = `
-      <span class="text-xs text-slate-600 font-mono w-8 shrink-0 pt-0.5 text-right">${i+1}</span>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm text-white break-words">${escHtml(s.text)}</p>
-        <p class="text-xs text-slate-500 mt-0.5 font-mono">${toSRTTime(s.start)} → ${toSRTTime(s.end)}</p>
-      </div>`;
-    list.appendChild(row);
-  });
+  vsContainer.scrollTop = 0;
+  renderVS();
   document.getElementById('results-panel').classList.remove('hidden');
   document.getElementById('results-panel').classList.add('flex');
 }
 
 ['toggle-particles','toggle-empty','toggle-merge'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => { if(parsedSubs.length) renderResults(); });
+  document.getElementById(id).addEventListener('change', () => { if(parsedSubs.length) scheduleRender(); });
 });
-document.getElementById('time-offset').addEventListener('input', () => { if(parsedSubs.length) renderResults(); });
+document.getElementById('time-offset').addEventListener('input', () => { if(parsedSubs.length) scheduleRender(); });
+document.getElementById('long-dur-threshold').addEventListener('input', () => { if(processedSubs.length) renderVS(); });
 
 window.exportFile = function(type) {
-  const p = applyTools(parsedSubs);
+  const p = processedSubs.length ? processedSubs : applyTools(parsedSubs);
   const map = { srt:[buildSRT(p),'srt'], txt:[buildTXT(p),'txt'], plain:[buildPlain(p),'txt'] };
   const [content, ext] = map[type];
   const blob = new Blob(['\uFEFF'+content], { type: 'text/plain;charset=utf-8' });
@@ -617,7 +756,8 @@ window.exportFile = function(type) {
 };
 
 window.copyAllSubs = function() {
-  navigator.clipboard.writeText(buildPlain(applyTools(parsedSubs))).then(() => {
+  const p = processedSubs.length ? processedSubs : applyTools(parsedSubs);
+  navigator.clipboard.writeText(buildPlain(p)).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
     if (!btn) return;
     const orig = btn.innerHTML;
@@ -628,10 +768,11 @@ window.copyAllSubs = function() {
 };
 
 window.clearAll = function() {
-  parsedSubs=[];
+  parsedSubs=[]; processedSubs=[];
   document.getElementById('results-panel').classList.add('hidden');
   document.getElementById('tools-panel').classList.add('hidden');
-  document.getElementById('preview-list').innerHTML='';
+  vsItems.innerHTML=''; vsSpacer.style.height='0';
+  document.getElementById('long-dur-count').textContent='';
   fileInput.value='';
 };
 
@@ -639,7 +780,7 @@ function showError(msg) {
   document.getElementById('error-text').textContent=msg;
   document.getElementById('error-msg').classList.remove('hidden');
 }
-function escHtml(t) { const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+function escHtml(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 </script>
 </body>
 </html>
