@@ -37,11 +37,7 @@ function buildParticlePicker() {
   const container = document.getElementById('particle-picker');
   if (!container) return;
   container.innerHTML = '';
-
-  const allWords = getAllParticles();
-  for (const word of allWords) {
-    container.appendChild(makeParticleChip(word));
-  }
+  for (const word of getAllParticles()) container.appendChild(makeParticleChip(word));
 }
 
 function makeParticleChip(word) {
@@ -50,7 +46,6 @@ function makeParticleChip(word) {
 
   const chip = document.createElement('label');
   chip.className = 'particle-chip' + (active ? ' active' : '');
-  chip.title = isCustom ? 'click to toggle / right-click to delete' : 'click to toggle';
 
   const cb = document.createElement('input');
   cb.type = 'checkbox';
@@ -65,7 +60,6 @@ function makeParticleChip(word) {
 
   const span = document.createElement('span');
   span.textContent = word;
-
   chip.appendChild(cb);
   chip.appendChild(span);
 
@@ -83,17 +77,14 @@ function makeParticleChip(word) {
     });
     chip.appendChild(del);
   }
-
   return chip;
 }
 
 function initParticlePicker() {
   buildParticlePicker();
-
   const addBtn   = document.getElementById('particle-add-btn');
   const addInput = document.getElementById('particle-add-input');
   if (!addBtn || !addInput) return;
-
   addInput.placeholder = t('particleAddPlaceholder');
 
   const doAdd = () => {
@@ -102,44 +93,37 @@ function initParticlePicker() {
     customParticles.push(word);
     particleState[word] = true;
     saveParticleState();
-    const container = document.getElementById('particle-picker');
-    container.appendChild(makeParticleChip(word));
+    document.getElementById('particle-picker').appendChild(makeParticleChip(word));
     addInput.value = '';
     if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
   };
-
   addBtn.addEventListener('click', doAdd);
   addInput.addEventListener('keydown', e => { if (e.key === 'Enter') doAdd(); });
 }
 
 // ---- Persist tool toggles ----
 function loadToggleState() {
-  const ids = ['toggle-particles','toggle-empty','toggle-merge'];
-  for (const id of ids) {
+  for (const id of ['toggle-particles','toggle-empty','toggle-merge']) {
     const el = document.getElementById(id);
     if (!el) continue;
     const saved = LS.get('toggle:' + id, null);
     if (saved !== null) el.checked = saved;
     el.addEventListener('change', () => LS.set('toggle:' + id, el.checked));
   }
-  // time offset
   const off = document.getElementById('time-offset');
   if (off) {
     const sv = LS.get('timeOffset', null);
     if (sv !== null) off.value = sv;
     off.addEventListener('input', () => LS.set('timeOffset', off.value));
   }
-  // long sub threshold
   const lst = document.getElementById('long-sub-threshold');
   if (lst) {
-    const sv = LS.get('longSubThreshold', 8);
-    lst.value = sv;
+    lst.value = LS.get('longSubThreshold', 8);
     lst.addEventListener('input', () => {
       LS.set('longSubThreshold', lst.value);
       if (parsedSubs.length) renderResults();
     });
   }
-  // show only long
   const sol = document.getElementById('toggle-show-only-long');
   if (sol) {
     sol.checked = LS.get('showOnlyLong', false);
@@ -180,7 +164,6 @@ function addReplaceRow(find = '', rep = '') {
     const r = replaceRules.find(x => x.id === id);
     if (r) { r.rep = e.target.value; saveReplaceRules(); if (parsedSubs.length) renderResults(); }
   });
-
   document.getElementById('replace-list').appendChild(row);
 }
 
@@ -193,7 +176,6 @@ window.removeReplaceRow = function (id) {
 
 document.getElementById('add-replace-btn').addEventListener('click', () => { addReplaceRow(); saveReplaceRules(); });
 
-// restore saved replace rules
 (function () {
   const saved = LS.get('replaceRules', []);
   for (const r of saved) addReplaceRow(r.find, r.rep);
@@ -206,15 +188,11 @@ let currentFileName = 'subtitles';
 const dropZone  = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(e =>
+['dragenter','dragover','dragleave','drop'].forEach(e =>
   document.body.addEventListener(e, ev => { ev.preventDefault(); ev.stopPropagation(); })
 );
-['dragenter', 'dragover'].forEach(e =>
-  dropZone.addEventListener(e, () => dropZone.classList.add('drag-over'))
-);
-['dragleave', 'drop'].forEach(e =>
-  dropZone.addEventListener(e, () => dropZone.classList.remove('drag-over'))
-);
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('drag-over')));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('drag-over')));
 dropZone.addEventListener('drop', e => {
   if (e.dataTransfer && e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
 });
@@ -246,7 +224,6 @@ async function handleFile(file) {
   }
 }
 
-// ---- Filename input ----
 function autoResizeFilenameInput(el) {
   let ruler = document.getElementById('filename-ruler');
   if (!ruler) {
@@ -259,33 +236,46 @@ function autoResizeFilenameInput(el) {
   el.style.width = (ruler.offsetWidth + 16) + 'px';
 }
 
-// ---- Render ----
+// ==========================================
+// renderResults
+// KEY DESIGN:
+//   - applyTools() returns a NEW array derived from parsedSubs
+//   - each item in `processed` has a `_srcIdx` pointing back to parsedSubs
+//   - ALL user edits (text / start / end) write DIRECTLY to parsedSubs[_srcIdx]
+//   - re-render reads from parsedSubs (already updated), so nothing is lost
+// ==========================================
 function renderResults() {
-  const processed  = applyTools(parsedSubs);
+  // applyTools gives processed subs; we need to map them back to parsedSubs indices.
+  // We do the processing on a tagged copy so we can trace back.
+  const tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
+  const processed = applyToolsTagged(tagged);
+
   const showOnlyLong = document.getElementById('toggle-show-only-long')?.checked || false;
-  const display    = showOnlyLong ? processed.filter(s => isLongSub(s)) : processed;
+  const display      = showOnlyLong ? processed.filter(s => isLongSub(s)) : processed;
 
   document.getElementById('subtitle-count').textContent = processed.length;
 
   const list = document.getElementById('preview-list');
   list.innerHTML = '';
 
-  display.slice(0, 200).forEach((s, i) => {
-    const long = isLongSub(s);
-    const row  = document.createElement('div');
+  display.slice(0, 200).forEach((s, visIdx) => {
+    const srcIdx = s._srcIdx; // direct index into parsedSubs
+    const long   = isLongSub(s);
+
+    const row = document.createElement('div');
     row.className = 'subtitle-row px-4 py-3 flex gap-4 items-start transition-colors'
       + (long ? ' long-sub-row' : ' hover:bg-slate-800/30');
 
     // Line number
     const numSpan = document.createElement('span');
     numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
-    numSpan.textContent = i + 1;
+    numSpan.textContent = visIdx + 1;
 
     // Right column
     const right = document.createElement('div');
     right.className = 'flex-1 min-w-0 flex flex-col gap-1';
 
-    // Editable subtitle text
+    // ---- Editable subtitle text ----
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input';
     ta.rows = 1;
@@ -294,60 +284,113 @@ function renderResults() {
     ta.addEventListener('input', function () {
       this.style.height = 'auto';
       this.style.height = this.scrollHeight + 'px';
-      const src = parsedSubs.find(x => Math.abs(x.start - s.start) < 0.001);
-      if (src) src.text = this.value;
+      parsedSubs[srcIdx].text = this.value; // write back by index
     });
 
-    // Timestamp row: editable start + end
+    // ---- Timestamp + duration row ----
     const tsRow = document.createElement('div');
-    tsRow.className = 'flex items-center gap-1 flex-wrap';
+    tsRow.className = 'flex items-center gap-2 flex-wrap';
 
-    const makeTimeInput = (sec, onCommit) => {
+    // Duration badge element (shared ref so we can update it live)
+    const durBadge = document.createElement('span');
+    durBadge.className = 'duration-badge' + (long ? ' long' : '');
+
+    function updateDurBadge(startSec, endSec) {
+      const d = endSec - startSec;
+      durBadge.textContent = d.toFixed(2) + 's';
+      const nowLong = d > (parseFloat(document.getElementById('long-sub-threshold')?.value) || 8);
+      durBadge.className = 'duration-badge' + (nowLong ? ' long' : '');
+      row.classList.toggle('long-sub-row', nowLong);
+      row.classList.toggle('hover:bg-slate-800/30', !nowLong);
+    }
+
+    // Shared current values (local to this row, always in sync with parsedSubs[srcIdx])
+    let curStart = s.start;
+    let curEnd   = s.end;
+    updateDurBadge(curStart, curEnd);
+
+    // Helper: make a time text input
+    function makeTimeInput(getSec, onCommit) {
       const inp = document.createElement('input');
       inp.type = 'text';
       inp.className = 'time-input font-mono';
-      inp.value = toSRTTime(sec);
+      inp.value = toSRTTime(getSec());
       inp.spellcheck = false;
+
+      inp.addEventListener('focus', function () {
+        // Sync to latest value when user clicks in
+        this.value = toSRTTime(getSec());
+      });
+      inp.addEventListener('input', function () {
+        // Live parse: update duration badge as user types
+        const v = srtTimeToSecFromStr(this.value);
+        if (v !== null && v >= 0) {
+          onCommit(v, true); // true = silent (no revert)
+          updateDurBadge(curStart, curEnd);
+        }
+      });
       inp.addEventListener('blur', function () {
-        const parsed = srtTimeToSecFromStr(this.value);
-        if (parsed !== null && parsed >= 0) {
-          onCommit(parsed);
-          this.value = toSRTTime(parsed);
-          // re-check long flag
-          row.classList.toggle('long-sub-row', isLongSub(s));
-          row.classList.toggle('hover:bg-slate-800/30', !isLongSub(s));
+        const v = srtTimeToSecFromStr(this.value);
+        if (v !== null && v >= 0) {
+          onCommit(v, false);
+          this.value = toSRTTime(getSec()); // normalise display
+          updateDurBadge(curStart, curEnd);
         } else {
-          this.value = toSRTTime(sec); // revert invalid
+          this.value = toSRTTime(getSec()); // revert invalid
         }
       });
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
       return inp;
-    };
+    }
 
-    const startInp = makeTimeInput(s.start, v => {
-      s.start = v;
-      const src = parsedSubs.find(x => Math.abs(x.start - (s.start === v ? s.start : v)) < 0.5);
-      if (src) src.start = v;
+    const startInp = makeTimeInput(
+      () => curStart,
+      (v) => { curStart = v; parsedSubs[srcIdx].start = v; }
+    );
+    const endInp = makeTimeInput(
+      () => curEnd,
+      (v) => { curEnd = v; parsedSubs[srcIdx].end = v; }
+    );
+
+    // ---- Editable duration input ----
+    const durInput = document.createElement('input');
+    durInput.type = 'number';
+    durInput.className = 'dur-input';
+    durInput.min = '0';
+    durInput.step = '0.1';
+    durInput.value = (curEnd - curStart).toFixed(2);
+    durInput.title = 'Duration (s) — editing sets end = start + duration';
+
+    durInput.addEventListener('focus', function () {
+      this.value = (curEnd - curStart).toFixed(2);
     });
+    durInput.addEventListener('input', function () {
+      const d = parseFloat(this.value);
+      if (!isNaN(d) && d >= 0) {
+        curEnd = curStart + d;
+        parsedSubs[srcIdx].end = curEnd;
+        endInp.value = toSRTTime(curEnd);
+        updateDurBadge(curStart, curEnd);
+      }
+    });
+    durInput.addEventListener('blur', function () {
+      this.value = (curEnd - curStart).toFixed(2);
+    });
+    durInput.addEventListener('keydown', e => { if (e.key === 'Enter') durInput.blur(); });
+
     const arrow = document.createElement('span');
     arrow.className = 'text-xs text-slate-600 select-none';
     arrow.textContent = '→';
-    const endInp = makeTimeInput(s.end, v => {
-      s.end = v;
-      const src = parsedSubs.find(x => Math.abs(x.end - s.end) < 0.5 && Math.abs(x.start - s.start) < 0.5);
-      if (src) src.end = v;
-    });
-
-    // Duration badge
-    const dur = s.end - s.start;
-    const durBadge = document.createElement('span');
-    durBadge.className = 'duration-badge' + (long ? ' long' : '');
-    durBadge.textContent = dur.toFixed(1) + 's';
+    const sLabel = document.createElement('span');
+    sLabel.className = 'text-xs text-slate-600 select-none';
+    sLabel.textContent = 's';
 
     tsRow.appendChild(startInp);
     tsRow.appendChild(arrow);
     tsRow.appendChild(endInp);
     tsRow.appendChild(durBadge);
+    tsRow.appendChild(durInput);
+    tsRow.appendChild(sLabel);
 
     right.appendChild(ta);
     right.appendChild(tsRow);
@@ -366,12 +409,52 @@ function renderResults() {
   panel.classList.add('flex');
 }
 
+// applyTools variant that preserves _srcIdx through the pipeline
+function applyToolsTagged(tagged) {
+  const offset      = parseFloat(document.getElementById('time-offset').value) || 0;
+  const doParticles = document.getElementById('toggle-particles').checked;
+  const doEmpty     = document.getElementById('toggle-empty').checked;
+  const doMerge     = document.getElementById('toggle-merge').checked;
+
+  let result = tagged.map(s => ({
+    ...s,
+    start: Math.max(0, s.start + offset),
+    end:   Math.max(0, s.end   + offset),
+  }));
+
+  result = result.map(s => {
+    let text = s.text;
+    for (const r of replaceRules) {
+      if (r.find) text = text.split(r.find).join(r.rep);
+    }
+    return { ...s, text };
+  });
+
+  if (doParticles) {
+    const re = buildParticleRegex();
+    if (re) result = result.map(s => ({ ...s, text: s.text.replace(re, '').trim() }));
+  }
+  if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
+  if (doMerge) {
+    const merged = [];
+    for (const s of result) {
+      if (merged.length && merged[merged.length - 1].text === s.text) {
+        merged[merged.length - 1].end = s.end;
+        // keep _srcIdx of first occurrence
+      } else {
+        merged.push({ ...s });
+      }
+    }
+    result = merged;
+  }
+  return result;
+}
+
 ['toggle-particles','toggle-empty','toggle-merge'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => { if (parsedSubs.length) renderResults(); })
 );
 document.getElementById('time-offset').addEventListener('input', () => { if (parsedSubs.length) renderResults(); });
 
-// Filename input wiring
 const fnInput = document.getElementById('filename-input');
 if (fnInput) {
   fnInput.addEventListener('input', function () {
@@ -382,7 +465,9 @@ if (fnInput) {
 
 // ---- Export ----
 window.exportFile = function (type) {
-  const p = applyTools(parsedSubs);
+  // Export uses parsedSubs directly (already has all user edits)
+  const tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
+  const p = applyToolsTagged(tagged);
   const map = {
     srt:   [buildSRT(p),   'srt'],
     txt:   [buildTXT(p),   'txt'],
@@ -399,7 +484,8 @@ window.exportFile = function (type) {
 };
 
 window.copyAllSubs = function () {
-  navigator.clipboard.writeText(buildPlain(applyTools(parsedSubs))).then(() => {
+  const tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
+  navigator.clipboard.writeText(buildPlain(applyToolsTagged(tagged))).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
     if (!btn) return;
     const orig = btn.innerHTML;
@@ -424,7 +510,6 @@ window.clearAll = function () {
   if (fn) { fn.value = ''; autoResizeFilenameInput(fn); }
 };
 
-// ---- Helpers ----
 function showError(msg) {
   document.getElementById('error-text').textContent = msg;
   document.getElementById('error-msg').classList.remove('hidden');
@@ -435,7 +520,6 @@ function escHtml(str) {
   return d.innerHTML;
 }
 
-// ---- Init ----
 renderOsGuide();
 initParticlePicker();
 loadToggleState();
