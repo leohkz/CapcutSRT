@@ -25,9 +25,8 @@ function detectOS() {
   return 'other';
 }
 function renderOsGuide() {
-  const os = detectOS();
-  document.getElementById('os-icon').textContent = osIcons[os];
-  document.getElementById('os-path').textContent = osPaths[os];
+  document.getElementById('os-icon').textContent = osIcons[detectOS()];
+  document.getElementById('os-path').textContent = osPaths[detectOS()];
 }
 
 // ---- Particle Picker ----
@@ -40,7 +39,7 @@ function buildParticlePicker() {
 function makeParticleChip(word) {
   const isCustom = !DEFAULT_PARTICLES.includes(word);
   const active   = particleState[word] !== false;
-  const chip = document.createElement('label');
+  const chip     = document.createElement('label');
   chip.className = 'particle-chip' + (active ? ' active' : '');
   const cb = document.createElement('input');
   cb.type = 'checkbox'; cb.checked = active; cb.style.display = 'none';
@@ -50,8 +49,7 @@ function makeParticleChip(word) {
     saveParticleState();
     if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
   });
-  const span = document.createElement('span');
-  span.textContent = word;
+  const span = document.createElement('span'); span.textContent = word;
   chip.appendChild(cb); chip.appendChild(span);
   if (isCustom) {
     const del = document.createElement('button');
@@ -59,9 +57,7 @@ function makeParticleChip(word) {
     del.addEventListener('click', e => {
       e.preventDefault();
       customParticles = customParticles.filter(w => w !== word);
-      delete particleState[word];
-      saveParticleState();
-      chip.remove();
+      delete particleState[word]; saveParticleState(); chip.remove();
       if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
     });
     chip.appendChild(del);
@@ -70,16 +66,14 @@ function makeParticleChip(word) {
 }
 function initParticlePicker() {
   buildParticlePicker();
-  const addBtn = document.getElementById('particle-add-btn');
+  const addBtn   = document.getElementById('particle-add-btn');
   const addInput = document.getElementById('particle-add-input');
   if (!addBtn || !addInput) return;
   addInput.placeholder = t('particleAddPlaceholder');
   const doAdd = () => {
     const word = addInput.value.trim();
     if (!word || getAllParticles().includes(word)) { addInput.value = ''; return; }
-    customParticles.push(word);
-    particleState[word] = true;
-    saveParticleState();
+    customParticles.push(word); particleState[word] = true; saveParticleState();
     document.getElementById('particle-picker').appendChild(makeParticleChip(word));
     addInput.value = '';
     if (parsedSubs.length && document.getElementById('toggle-particles').checked) renderResults();
@@ -145,8 +139,10 @@ window.removeReplaceRow = function(id) {
 document.getElementById('add-replace-btn').addEventListener('click', () => { addReplaceRow(); saveReplaceRules(); });
 (function(){ const saved = LS.get('replaceRules',[]); for(const r of saved) addReplaceRow(r.find,r.rep); })();
 
-// ---- File Handling ----
-let parsedSubs = [];
+// ==========================================
+// File Handling — supports batch SRT/TXT
+// ==========================================
+let parsedSubs      = [];
 let currentFileName = 'subtitles';
 
 const dropZone  = document.getElementById('drop-zone');
@@ -154,35 +150,79 @@ const fileInput = document.getElementById('file-input');
 ['dragenter','dragover','dragleave','drop'].forEach(e => document.body.addEventListener(e, ev => {ev.preventDefault();ev.stopPropagation();}));
 ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.add('drag-over')));
 ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('drag-over')));
-dropZone.addEventListener('drop', e => { if(e.dataTransfer&&e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
-fileInput.addEventListener('change', e => { if(e.target.files&&e.target.files.length) handleFile(e.target.files[0]); });
+dropZone.addEventListener('drop', e => { if(e.dataTransfer?.files.length) handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => { if(e.target.files?.length) handleFiles(e.target.files); });
 
-async function handleFile(file) {
+async function handleFiles(fileList) {
   document.getElementById('error-msg').classList.add('hidden');
+  document.getElementById('batch-bar').classList.add('hidden');
+  const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Reject mixed JSON + SRT/TXT
+  const hasJson = files.some(f => f.name.toLowerCase().endsWith('.json'));
+  const hasOther = files.some(f => !f.name.toLowerCase().endsWith('.json'));
+  if (hasJson && files.length > 1) {
+    showError('CapCut JSON 檔案不支援批量上傳，請單檔處理。'); return;
+  }
+
+  // Parse all files
+  const allSubs = [];
+  const fileNames = [];
   try {
-    const raw  = await file.text();
-    const name = file.name.toLowerCase();
-    if (name.endsWith('.srt')) {
-      parsedSubs = parseSRT(raw);
-      if (!parsedSubs.length) throw new Error('No valid SRT blocks found.');
-      currentFileName = file.name.replace(/\.srt$/i,'');
-    } else if (name.endsWith('.txt')) {
-      parsedSubs = parseTXT(raw);
-      if (!parsedSubs.length) throw new Error('No content found in .txt file.');
-      currentFileName = file.name.replace(/\.txt$/i,'');
-    } else {
-      const json = JSON.parse(raw);
-      parsedSubs = parseCapcut(json);
-      if (!parsedSubs.length) throw new Error('No subtitle tracks found.');
-      currentFileName = file.name.replace(/\.json$/i,'');
+    for (const file of files) {
+      const raw  = await file.text();
+      const name = file.name.toLowerCase();
+      let subs;
+      if (name.endsWith('.srt')) {
+        subs = parseSRT(raw);
+        if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
+      } else if (name.endsWith('.txt')) {
+        subs = parseTXT(raw);
+        if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
+      } else {
+        // JSON
+        const json = JSON.parse(raw);
+        subs = parseCapcut(json);
+        if (!subs.length) throw new Error('找不到字幕資料。');
+      }
+      allSubs.push(...subs);
+      fileNames.push(file.name);
     }
   } catch(err) {
-    showError(t('errorBadFile') + (err.message ? ' ('+err.message+')' : ''));
+    showError(t('errorBadFile') + (err.message ? ' (' + err.message + ')' : ''));
     return;
   }
+
+  // For multiple files: sort merged subs by start time
+  parsedSubs = files.length > 1
+    ? allSubs.sort((a, b) => a.start - b.start)
+    : allSubs;
+
+  currentFileName = files.length === 1
+    ? files[0].name.replace(/\.(srt|txt|json)$/i, '')
+    : 'merged';
+
+  // Update filename input
   const fnInput = document.getElementById('filename-input');
   if (fnInput) { fnInput.value = currentFileName; autoResizeFilenameInput(fnInput); }
+
+  // Show batch bar for multiple files
+  if (files.length > 1) {
+    document.getElementById('batch-title').textContent =
+      `批量處理 ${files.length} 個檔案，已依時間排序合併`;
+    const listEl = document.getElementById('batch-file-list');
+    listEl.innerHTML = '';
+    for (const name of fileNames) {
+      const tag = document.createElement('span');
+      tag.className = 'px-2 py-0.5 bg-slate-700 rounded text-xs text-slate-300 font-mono';
+      tag.textContent = name;
+      listEl.appendChild(tag);
+    }
+    document.getElementById('batch-bar').classList.remove('hidden');
+  }
+
   document.getElementById('tools-panel').classList.remove('hidden');
+
   try {
     await renderResults();
   } catch(err) {
@@ -205,31 +245,22 @@ function autoResizeFilenameInput(el) {
 
 // ==========================================
 // renderResults
-// Uses a generation counter to cancel stale async renders.
-// All zh conversion is done SYNCHRONOUSLY via the pre-loaded OpenCC.
 // ==========================================
 let _renderGen = 0;
 
 async function renderResults() {
   const myGen = ++_renderGen;
+  const zhMode = document.getElementById('zh-convert-select')?.value || 'none';
 
-  const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
-
-  // Build processed list (sync)
   let tagged = parsedSubs.map((s, i) => ({ ...s, _srcIdx: i }));
   tagged = applyToolsTagged(tagged);
 
-  // zh conversion is sync (OpenCC loaded in <head>)
   if (zhMode !== 'none') {
     const converter = getZhConverter(zhMode);
-    if (converter) {
-      tagged = tagged.map(s => ({ ...s, text: converter(s.text) }));
-    } else {
-      console.warn('OpenCC converter not available for mode:', zhMode);
-    }
+    if (converter) tagged = tagged.map(s => ({ ...s, text: converter(s.text) }));
+    else console.warn('OpenCC converter not available for mode:', zhMode);
   }
 
-  // Stale check (in case another renderResults() was called)
   if (myGen !== _renderGen) return;
 
   const showOnlyLong = document.getElementById('toggle-show-only-long')?.checked || false;
@@ -257,7 +288,7 @@ async function renderResults() {
 
     const ta = document.createElement('textarea');
     ta.className = 'sub-text-input'; ta.rows = 1; ta.spellcheck = false;
-    ta.value = s.text;  // converted text shown here
+    ta.value = s.text;
     ta.addEventListener('input', function() {
       this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';
       parsedSubs[srcIdx].text = this.value;
@@ -287,8 +318,8 @@ async function renderResults() {
 
     function makeTimeInput(getSec, onCommit) {
       const inp = document.createElement('input');
-      inp.type = 'text'; inp.className = 'time-input font-mono';
-      inp.value = toSRTTime(getSec()); inp.spellcheck = false;
+      inp.type = 'text'; inp.className = 'time-input font-mono'; inp.spellcheck = false;
+      inp.value = toSRTTime(getSec());
       inp.addEventListener('focus', function() { this.value = toSRTTime(getSec()); });
       inp.addEventListener('input', function() {
         const v = srtTimeToSecFromStr(this.value);
@@ -303,14 +334,8 @@ async function renderResults() {
       return inp;
     }
 
-    const startInp = makeTimeInput(
-      () => curStart,
-      v  => { curStart = v; parsedSubs[srcIdx].start = v; }
-    );
-    const endInp = makeTimeInput(
-      () => curEnd,
-      v  => { curEnd = v; parsedSubs[srcIdx].end = v; }
-    );
+    const startInp = makeTimeInput(() => curStart, v => { curStart = v; parsedSubs[srcIdx].start = v; });
+    const endInp   = makeTimeInput(() => curEnd,   v => { curEnd   = v; parsedSubs[srcIdx].end   = v; });
 
     durInput = document.createElement('input');
     durInput.type = 'number'; durInput.className = 'dur-input';
@@ -320,27 +345,19 @@ async function renderResults() {
     durInput.addEventListener('focus', function() { this.value = (curEnd-curStart).toFixed(2); });
     durInput.addEventListener('input', function() {
       const d = parseFloat(this.value);
-      if (!isNaN(d) && d >= 0) {
-        curEnd = curStart + d;
-        parsedSubs[srcIdx].end = curEnd;
-        endInp.value = toSRTTime(curEnd);
-        updateDurBadge();
-      }
+      if (!isNaN(d) && d >= 0) { curEnd = curStart+d; parsedSubs[srcIdx].end=curEnd; endInp.value=toSRTTime(curEnd); updateDurBadge(); }
     });
     durInput.addEventListener('blur', function() { this.value = (curEnd-curStart).toFixed(2); });
     durInput.addEventListener('keydown', e => { if(e.key==='Enter') durInput.blur(); });
 
-    const arrow = document.createElement('span');
-    arrow.className = 'text-xs text-slate-600 select-none'; arrow.textContent = '→';
-    const sLabel = document.createElement('span');
-    sLabel.className = 'text-xs text-slate-600 select-none'; sLabel.textContent = 's';
+    const arrow  = document.createElement('span'); arrow.className = 'text-xs text-slate-600 select-none'; arrow.textContent = '→';
+    const sLabel = document.createElement('span'); sLabel.className = 'text-xs text-slate-600 select-none'; sLabel.textContent = 's';
 
     tsRow.appendChild(startInp); tsRow.appendChild(arrow); tsRow.appendChild(endInp);
     tsRow.appendChild(durBadge); tsRow.appendChild(durInput); tsRow.appendChild(sLabel);
     right.appendChild(ta); right.appendChild(tsRow);
     row.appendChild(numSpan); row.appendChild(right);
     list.appendChild(row);
-
     requestAnimationFrame(() => { ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
   });
 
@@ -362,13 +379,13 @@ function applyToolsTagged(tagged) {
   });
   if (doParticles) {
     const re = buildParticleRegex();
-    if (re) result = result.map(s => ({...s, text: s.text.replace(re,'').trim()}));
+    if (re) result = result.map(s => ({...s, text:s.text.replace(re,'').trim()}));
   }
   if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
   if (doMerge) {
     const merged = [];
     for(const s of result) {
-      if(merged.length && merged[merged.length-1].text === s.text) merged[merged.length-1].end = s.end;
+      if(merged.length && merged[merged.length-1].text===s.text) merged[merged.length-1].end=s.end;
       else merged.push({...s});
     }
     result = merged;
@@ -385,8 +402,8 @@ const fnInput = document.getElementById('filename-input');
 if(fnInput) fnInput.addEventListener('input', function(){ currentFileName=this.value.trim()||'subtitles'; autoResizeFilenameInput(this); });
 
 // ---- Export ----
-async function getExportSubs() {
-  const zhMode = (document.getElementById('zh-convert-select')?.value) || 'none';
+function getExportSubs() {
+  const zhMode = document.getElementById('zh-convert-select')?.value || 'none';
   let tagged = parsedSubs.map((s,i) => ({...s,_srcIdx:i}));
   tagged = applyToolsTagged(tagged);
   if (zhMode !== 'none') {
@@ -396,8 +413,8 @@ async function getExportSubs() {
   return tagged;
 }
 
-window.exportFile = async function(type) {
-  const p = await getExportSubs();
+window.exportFile = function(type) {
+  const p = getExportSubs();
   const map = { srt:[buildSRT(p),'srt'], txt:[buildTXT(p),'txt'], plain:[buildPlain(p),'txt'] };
   const [content,ext] = map[type];
   const blob = new Blob(['\uFEFF'+content],{type:'text/plain;charset=utf-8'});
@@ -407,8 +424,8 @@ window.exportFile = async function(type) {
   URL.revokeObjectURL(url);
 };
 
-window.copyAllSubs = async function() {
-  const p = await getExportSubs();
+window.copyAllSubs = function() {
+  const p = getExportSubs();
   navigator.clipboard.writeText(buildPlain(p)).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
     if(!btn) return;
@@ -422,6 +439,7 @@ window.clearAll = function() {
   parsedSubs = [];
   document.getElementById('results-panel').classList.add('hidden');
   document.getElementById('tools-panel').classList.add('hidden');
+  document.getElementById('batch-bar').classList.add('hidden');
   document.getElementById('preview-list').innerHTML = '';
   fileInput.value = '';
   const fn = document.getElementById('filename-input');

@@ -6,7 +6,6 @@
 <title>CapcutSRT - Export Subtitles from CapCut</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='20' width='80' height='60' rx='8' fill='none' stroke='%238B5CF6' stroke-width='8'/%3E%3Cpath d='M25 55 H75 M25 68 H55' stroke='%238B5CF6' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- opencc-js full build: supports both s→t and t→s, loaded once up-front -->
 <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -56,7 +55,8 @@
   </div>
 
   <div id="drop-zone" class="drop-zone rounded-2xl p-8 md:p-12 text-center cursor-pointer group relative select-none">
-    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" accept=".json,.srt,.txt,application/json,text/plain">
+    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+           accept=".json,.srt,.txt,application/json,text/plain" multiple>
     <div class="relative z-10 pointer-events-none flex flex-col items-center gap-4">
       <div class="p-4 bg-slate-800/50 rounded-full border border-slate-700 group-hover:border-violet-500 group-hover:bg-slate-800 transition-all">
         <svg class="w-8 h-8 text-slate-300 group-hover:text-violet-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,6 +76,15 @@
     </div>
   </div>
 
+  <!-- Batch file info bar (hidden when single file) -->
+  <div id="batch-bar" class="hidden glass-panel rounded-xl px-4 py-3 flex items-start gap-3">
+    <svg class="w-4 h-4 text-violet-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+    <div class="flex-1 min-w-0">
+      <p class="text-xs font-semibold text-violet-300 mb-1" id="batch-title"></p>
+      <div id="batch-file-list" class="flex flex-wrap gap-1"></div>
+    </div>
+  </div>
+
   <div id="tools-panel" class="hidden glass-panel rounded-2xl p-6">
     <h2 class="text-sm font-semibold text-slate-300 mb-5 flex items-center gap-2">
       <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
@@ -84,8 +93,6 @@
     <div class="grid md:grid-cols-2 gap-6">
 
       <div class="space-y-5">
-
-        <!-- Filler words -->
         <div>
           <div class="flex items-center justify-between mb-2">
             <div><p class="text-sm text-white" data-i18n="deleteParticles"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="deleteParticlesSub"></p></div>
@@ -99,7 +106,6 @@
             </button>
           </div>
         </div>
-
         <div class="flex items-center justify-between">
           <div><p class="text-sm text-white" data-i18n="removeEmpty"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="removeEmptySub"></p></div>
           <label class="toggle-switch"><input type="checkbox" id="toggle-empty" checked><span class="toggle-slider"></span></label>
@@ -108,8 +114,6 @@
           <div><p class="text-sm text-white" data-i18n="mergeSame"></p><p class="text-xs text-slate-500 mt-0.5" data-i18n="mergeSameSub"></p></div>
           <label class="toggle-switch"><input type="checkbox" id="toggle-merge"><span class="toggle-slider"></span></label>
         </div>
-
-        <!-- Time offset -->
         <div>
           <p class="text-sm text-white mb-2" data-i18n="timeOffset"></p>
           <div class="flex items-center gap-2">
@@ -117,8 +121,6 @@
             <span class="text-xs text-slate-400" data-i18n="seconds"></span>
           </div>
         </div>
-
-        <!-- Long subtitle detection -->
         <div>
           <p class="text-sm text-white mb-1" data-i18n="longSubDetect"></p>
           <div class="flex items-center gap-2 flex-wrap">
@@ -131,8 +133,6 @@
             <span class="text-xs text-slate-400" data-i18n="showOnlyLong"></span>
           </div>
         </div>
-
-        <!-- Chinese conversion -->
         <div>
           <p class="text-sm text-white mb-2" data-i18n="zhConvert"></p>
           <select id="zh-convert-select" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer">
@@ -141,10 +141,8 @@
             <option value="t2s"></option>
           </select>
         </div>
-
       </div>
 
-      <!-- Right: text replacements -->
       <div>
         <p class="text-sm text-white mb-3" data-i18n="textReplace"></p>
         <div id="replace-list" class="space-y-2 mb-3"></div>
@@ -157,12 +155,11 @@
     </div>
   </div>
 
-  <!-- Results -->
   <div id="results-panel" class="hidden flex-col gap-4 fade-in-up">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
       <div class="text-sm text-slate-400 flex items-center gap-1 flex-wrap">
         <input id="filename-input" type="text" class="filename-input" placeholder="subtitles" autocomplete="off" spellcheck="false">
-        <span class="text-slate-600 select-none">&nbsp;·&nbsp;</span>
+        <span class="text-slate-600 select-none">&nbsp;&middot;&nbsp;</span>
         <span id="subtitle-count" class="text-white font-bold">0</span>
         <span data-i18n="subtitleLines"></span>
       </div>
