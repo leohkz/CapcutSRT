@@ -2,7 +2,7 @@
 // Tools
 // ==========================================
 
-const DEFAULT_PARTICLES = ['嗯','啊','哦','嗳','那','就','然后','然後','唔','系','即係','即是','問','啦','誒','話','悔','喔','咼'];
+const DEFAULT_PARTICLES = ['嗯','啊','哦','哼','那','就','然後','然后','唔','系','即係','即是','問','啦','係','話','咦','喂','哎','咗'];
 
 let particleState   = {};
 let customParticles = [];
@@ -32,8 +32,66 @@ function buildParticleRegex() {
 }
 
 // ==========================================
+// Smart Duration Trim
+// Formula: maxDur = max(MIN_SEC, charCount * SEC_PER_CHAR)
+// Only shrinks end time (end = start + maxDur), never extends.
+// Writes back into parsedFiles[fi].subs[si] AND parsedSubs flat array.
+// ==========================================
+const SMART_TRIM_SEC_PER_CHAR = 0.45;  // ~0.45s per Chinese char
+const SMART_TRIM_MIN_SEC      = 1.2;   // minimum floor regardless of char count
+
+/**
+ * Count "effective" characters for timing purposes.
+ * Chinese/Japanese chars count as 1, spaces/punctuation count as 0.3
+ */
+function countEffectiveChars(text) {
+  let count = 0;
+  for (const ch of text) {
+    if (/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(ch)) count += 1;
+    else if (/\S/.test(ch)) count += 0.5;  // latin / numbers / symbols
+  }
+  return count;
+}
+
+/**
+ * Returns max allowed seconds for this subtitle's text.
+ * 3 chars → ~1.35s → capped at MIN_SEC=1.2  → 1.35s
+ * 7 chars → ~3.15s
+ * 15 chars → ~6.75s
+ */
+function smartMaxDur(text) {
+  const eff = countEffectiveChars(text);
+  return Math.max(SMART_TRIM_MIN_SEC, eff * SMART_TRIM_SEC_PER_CHAR);
+}
+
+/**
+ * Apply smart trim to all parsedFiles entries AND rebuild parsedSubs.
+ * Returns number of subtitles that were actually changed.
+ */
+function smartTrimDurations() {
+  let changed = 0;
+  for (const file of parsedFiles) {
+    for (const s of file.subs) {
+      const maxDur = smartMaxDur(s.text);
+      const curDur = s.end - s.start;
+      if (curDur > maxDur) {
+        s.end = s.start + maxDur;
+        changed++;
+      }
+    }
+  }
+  // Rebuild flat parsedSubs to stay in sync
+  parsedSubs.length = 0;
+  for (let fi = 0; fi < parsedFiles.length; fi++) {
+    for (let si = 0; si < parsedFiles[fi].subs.length; si++) {
+      parsedSubs.push({ ...parsedFiles[fi].subs[si], _fileIdx: fi, _srcIdx: si });
+    }
+  }
+  return changed;
+}
+
+// ==========================================
 // OpenCC — full.js loaded in <head>, window.OpenCC always available
-// getZhConverter() returns a cached SYNC converter function
 // ==========================================
 const _zhConverters = {};
 
@@ -46,7 +104,6 @@ function getZhConverter(mode) {
   try {
     const args = mode === 's2t' ? { from: 'cn', to: 'tw' } : { from: 'tw', to: 'cn' };
     _zhConverters[mode] = OpenCC.Converter(args);
-    console.log('OpenCC converter created for mode:', mode, typeof _zhConverters[mode]);
     return _zhConverters[mode];
   } catch(e) {
     console.error('OpenCC.Converter() failed:', e);
@@ -54,7 +111,6 @@ function getZhConverter(mode) {
   }
 }
 
-// kept for export compatibility
 async function convertSubtitles(subs, mode) {
   if (!mode || mode === 'none') return subs;
   const converter = getZhConverter(mode);

@@ -6,7 +6,7 @@ const i18n = {
     osGuideSub: 'Navigate to the folder below, open your project folder, and drag the draft_content.json file here.',
     osGuideNote: 'Replace "user" with your actual username. Each project has its own subfolder inside com.lveditor.draft.',
     dropTitle: 'Click or drag & drop your file',
-    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt  (multi-file OK)',
     dropHint: 'No upload · Fully private',
     advancedTools: 'Advanced Processing Tools',
     deleteParticles: 'Remove filler words',
@@ -30,6 +30,11 @@ const i18n = {
     zhConvertNone: 'Off',
     zhConvertS2T: 'Simplified → Traditional',
     zhConvertT2S: 'Traditional → Simplified',
+    smartTrim: 'Smart Duration Trim',
+    smartTrimDesc: 'Auto-cap duration by character count (only shortens, never extends)',
+    smartTrimBtn: '⚡ Smart Trim',
+    smartTrimDone: (n) => `Trimmed ${n} subtitle${n===1?'':'s'}`,
+    smartTrimNone: 'All durations are already within limit',
     subtitleLines: ' subtitle lines',
     exportSRT: 'Export .srt',
     exportTXT: 'Export .txt (timestamps)',
@@ -49,7 +54,7 @@ const i18n = {
     osGuideSub: '前往以下路徑，進入你的專案資料夾，把 draft_content.json 拖曳到這裡。',
     osGuideNote: '請將 "user" 替換為你的實際用戶名稱。',
     dropTitle: '點擊或拖曳檔案',
-    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt（支援多檔）',
     dropHint: '不上傳 · 完全私密',
     advancedTools: '進階處理工具',
     deleteParticles: '刪除語氣詞／填充詞',
@@ -73,6 +78,11 @@ const i18n = {
     zhConvertNone: '關閉',
     zhConvertS2T: '簡體 → 繁體',
     zhConvertT2S: '繁體 → 簡體',
+    smartTrim: '智能壓縮時長',
+    smartTrimDesc: '按字數自動縮短過長的字幕時間（只縮短，不延長）',
+    smartTrimBtn: '⚡ 一鍵智能壓縮',
+    smartTrimDone: (n) => `已壓縮 ${n} 條字幕`,
+    smartTrimNone: '所有字幕時長都在合理範圍內',
     subtitleLines: ' 條字幕',
     exportSRT: '匯出 .srt',
     exportTXT: '匯出 .txt（含時間戳）',
@@ -92,7 +102,7 @@ const i18n = {
     osGuideSub: '前往以下路径，进入你的项目文件夹，把 draft_content.json 拖拽到这里。',
     osGuideNote: '请将 "user" 替换为你的实际用户名。',
     dropTitle: '点击或拖拽文件',
-    dropSub: 'CapCut JSON  ·  .srt  ·  .txt',
+    dropSub: 'CapCut JSON  ·  .srt  ·  .txt（支持多文件）',
     dropHint: '不上传 · 完全私密',
     advancedTools: '高级处理工具',
     deleteParticles: '删除语气词／填充词',
@@ -116,6 +126,11 @@ const i18n = {
     zhConvertNone: '关闭',
     zhConvertS2T: '简体 → 繁体',
     zhConvertT2S: '繁体 → 简体',
+    smartTrim: '智能压缩时长',
+    smartTrimDesc: '按字数自动缩短过长的字幕时间（只缩短，不延长）',
+    smartTrimBtn: '⚡ 一键智能压缩',
+    smartTrimDone: (n) => `已压缩 ${n} 条字幕`,
+    smartTrimNone: '所有字幕时长都在合理范围内',
     subtitleLines: ' 条字幕',
     exportSRT: '导出 .srt',
     exportTXT: '导出 .txt（含时间戳）',
@@ -140,13 +155,17 @@ function applyLang(lang) {
   document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
   document.querySelectorAll('.replace-find').forEach(i => i.placeholder = t('findPlaceholder'));
   document.querySelectorAll('.replace-with').forEach(i => i.placeholder = t('replacePlaceholder'));
-  // update zh-convert select options text
   const sel = document.getElementById('zh-convert-select');
   if (sel) {
     sel.options[0].text = t('zhConvertNone');
     sel.options[1].text = t('zhConvertS2T');
     sel.options[2].text = t('zhConvertT2S');
   }
+  // smart trim UI
+  const stBtn = document.getElementById('smart-trim-btn');
+  if (stBtn) stBtn.textContent = t('smartTrimBtn');
+  const stDesc = document.getElementById('smart-trim-desc');
+  if (stDesc) stDesc.textContent = t('smartTrimDesc');
   if (typeof renderOsGuide === 'function') renderOsGuide();
 }
 

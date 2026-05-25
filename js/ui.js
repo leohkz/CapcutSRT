@@ -7,6 +7,20 @@ const LS = {
   set: (k, v)        => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
+// ---- Toast ----
+let _toastTimer = null;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-xl transition-all ${
+    isError ? 'bg-red-700/90 text-white' : 'bg-violet-700/90 text-white'
+  }`;
+  el.classList.remove('hidden');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
 // ---- OS Guide ----
 const osPaths = {
   windows: 'C:\\Users\\user\\AppData\\Local\\CapCut\\User Data\\Projects\\com.lveditor.draft\\',
@@ -110,6 +124,26 @@ function loadToggleState() {
     zhSel.value = LS.get('zhConvert', 'none');
     zhSel.addEventListener('change', () => { LS.set('zhConvert', zhSel.value); if (parsedSubs.length) renderResults(); });
   }
+
+  // Smart Trim button
+  const stBtn = document.getElementById('smart-trim-btn');
+  if (stBtn) {
+    stBtn.textContent = t('smartTrimBtn');
+    document.getElementById('smart-trim-desc').textContent = t('smartTrimDesc');
+    stBtn.addEventListener('click', () => {
+      if (!parsedSubs.length) return;
+      const n = smartTrimDurations();
+      if (n === 0) {
+        showToast(t('smartTrimNone'));
+      } else {
+        const msg = typeof t('smartTrimDone') === 'function'
+          ? i18n[currentLang].smartTrimDone(n)
+          : t('smartTrimDone');
+        showToast(msg);
+        renderResults();
+      }
+    });
+  }
 }
 
 // ---- Replace Rules ----
@@ -141,11 +175,9 @@ document.getElementById('add-replace-btn').addEventListener('click', () => { add
 
 // ==========================================
 // File state
-// parsedFiles: [{ name, subs }]  — one entry per uploaded file
-// parsedSubs:  flat array for preview (merged, with _fileIdx + _srcIdx)
 // ==========================================
-let parsedFiles = [];   // [{ name: 'ep01', subs: [...] }]
-let parsedSubs  = [];   // flat merged array for preview/edit
+let parsedFiles = [];
+let parsedSubs  = [];
 let isBatch     = false;
 let currentFileName = 'subtitles';
 
@@ -162,7 +194,7 @@ async function handleFiles(fileList) {
   document.getElementById('batch-bar').classList.add('hidden');
   const files = Array.from(fileList).sort((a, b) => a.name.localeCompare(b.name));
 
-  const hasJson  = files.some(f => f.name.toLowerCase().endsWith('.json'));
+  const hasJson = files.some(f => f.name.toLowerCase().endsWith('.json'));
   if (hasJson && files.length > 1) {
     showError('CapCut JSON 檔案不支援批量上傳，請單檔處理。'); return;
   }
@@ -173,9 +205,9 @@ async function handleFiles(fileList) {
       const raw  = await file.text();
       const name = file.name.toLowerCase();
       let subs;
-      if (name.endsWith('.srt'))       subs = parseSRT(raw);
-      else if (name.endsWith('.txt'))  subs = parseTXT(raw);
-      else                             subs = parseCapcut(JSON.parse(raw));
+      if (name.endsWith('.srt'))      subs = parseSRT(raw);
+      else if (name.endsWith('.txt')) subs = parseTXT(raw);
+      else                            subs = parseCapcut(JSON.parse(raw));
       if (!subs.length) throw new Error(`沒有有效內容：${file.name}`);
       newFiles.push({ name: file.name.replace(/\.(srt|txt|json)$/i, ''), subs });
     }
@@ -187,7 +219,6 @@ async function handleFiles(fileList) {
   parsedFiles = newFiles;
   isBatch     = files.length > 1;
 
-  // Flatten for preview: tag each sub with fileIdx + srcIdx so edits write back correctly
   parsedSubs = [];
   for (let fi = 0; fi < parsedFiles.length; fi++) {
     for (let si = 0; si < parsedFiles[fi].subs.length; si++) {
@@ -195,7 +226,7 @@ async function handleFiles(fileList) {
     }
   }
 
-  currentFileName = isBatch ? parsedFiles[0].name : parsedFiles[0].name;
+  currentFileName = parsedFiles[0].name;
 
   const fnInput = document.getElementById('filename-input');
   if (fnInput) {
@@ -235,7 +266,7 @@ function autoResizeFilenameInput(el) {
 }
 
 // ==========================================
-// renderResults — preview uses flat parsedSubs
+// renderResults
 // ==========================================
 let _renderGen = 0;
 
@@ -269,13 +300,12 @@ async function renderResults() {
     numSpan.className = 'text-xs text-slate-600 font-mono w-8 shrink-0 pt-1 text-right select-none';
     numSpan.textContent = visIdx + 1;
 
-    // File label for batch mode
     const right = document.createElement('div');
     right.className = 'flex-1 min-w-0 flex flex-col gap-1';
     if (isBatch) {
       const fileLabel = document.createElement('span');
       fileLabel.className = 'text-xs text-violet-400/70 font-mono mb-0.5';
-      fileLabel.textContent = parsedFiles[parsedSubs[flatIdx]._fileIdx]?.name || '';
+      fileLabel.textContent = parsedFiles[parsedSubs[flatIdx]?._fileIdx]?.name || '';
       right.appendChild(fileLabel);
     }
 
@@ -284,7 +314,6 @@ async function renderResults() {
     ta.value = s.text;
     ta.addEventListener('input', function() {
       this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';
-      // Write back to the correct file
       const orig = parsedSubs[flatIdx];
       parsedFiles[orig._fileIdx].subs[orig._srcIdx].text = this.value;
       parsedSubs[flatIdx].text = this.value;
@@ -394,8 +423,6 @@ if(fnInput) fnInput.addEventListener('input', function(){ currentFileName=this.v
 
 // ==========================================
 // Export
-// Single file → download directly
-// Batch       → JSZip, one file per entry
 // ==========================================
 function buildProcessedFiles(ext) {
   const zhMode = document.getElementById('zh-convert-select')?.value || 'none';
@@ -406,11 +433,7 @@ function buildProcessedFiles(ext) {
   const doMerge     = document.getElementById('toggle-merge').checked;
 
   return parsedFiles.map(({ name, subs }) => {
-    let result = subs.map(s => ({
-      ...s,
-      start: Math.max(0, s.start + offset),
-      end:   Math.max(0, s.end   + offset),
-    }));
+    let result = subs.map(s => ({ ...s, start:Math.max(0,s.start+offset), end:Math.max(0,s.end+offset) }));
     result = result.map(s => { let text=s.text; for(const r of replaceRules){ if(r.find) text=text.split(r.find).join(r.rep); } return {...s,text}; });
     if (doParticles) { const re=buildParticleRegex(); if(re) result=result.map(s=>({...s,text:s.text.replace(re,'').trim()})); }
     if (doEmpty) result = result.filter(s => s.text.trim().length > 0);
@@ -423,12 +446,10 @@ function buildProcessedFiles(ext) {
       result = merged;
     }
     if (conv) result = result.map(s => ({...s, text: conv(s.text)}));
-
     let content;
-    if (ext === 'srt')   content = buildSRT(result);
+    if (ext === 'srt')      content = buildSRT(result);
     else if (ext === 'txt') content = buildTXT(result);
-    else                 content = buildPlain(result);
-
+    else                    content = buildPlain(result);
     return { name: `${name}.${ext}`, content: '\uFEFF' + content };
   });
 }
@@ -445,27 +466,22 @@ window.exportFile = async function(type) {
   const extMap = { srt: 'srt', txt: 'txt', plain: 'txt' };
   const ext    = extMap[type];
   const files  = buildProcessedFiles(ext);
-
   if (!isBatch) {
-    // Single file: direct download
     downloadBlob(files[0].content, files[0].name);
     return;
   }
-
-  // Batch: pack into ZIP
   const zip = new JSZip();
   for (const f of files) zip.file(f.name, f.content);
-  const blob = await zip.generateAsync({ type: 'blob' });
+  const blob    = await zip.generateAsync({ type: 'blob' });
   const zipName = parsedFiles[0].name + `_batch_${parsedFiles.length}.zip`;
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
   a.href = url; a.download = zipName; a.click();
   URL.revokeObjectURL(url);
 };
 
 window.copyAllSubs = function() {
-  // Copy all files' plain text separated by blank lines
-  const files = buildProcessedFiles('txt');
+  const files   = buildProcessedFiles('txt');
   const allText = files.map(f => f.content.replace(/^\uFEFF/, '')).join('\n\n---\n\n');
   navigator.clipboard.writeText(allText).then(() => {
     const btn = document.querySelector('[onclick="copyAllSubs()"]');
